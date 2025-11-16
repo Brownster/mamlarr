@@ -8,13 +8,6 @@ ARG ABR_REPO
 ARG ABR_REF
 RUN git clone --branch ${ABR_REF} --depth=1 ${ABR_REPO} /src/audiobookrequest
 
-FROM node:${NODE_VERSION}-bookworm AS ui-build
-WORKDIR /workspace
-COPY --from=abr-src /src/audiobookrequest/static ./static
-RUN npm init -y && \
-    npm install --no-audit --no-fund tailwindcss@4.1.12 daisyui@5 && \
-    npx tailwindcss -i ./static/tw.css -o ./static/globals.css
-
 FROM python:${PYTHON_VERSION}-slim AS python-build
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -34,7 +27,7 @@ WORKDIR /srv
 COPY --from=python-build /usr/local /usr/local
 COPY --from=abr-src /src/audiobookrequest /srv/audiobookrequest
 COPY . /srv/mamlarr
-COPY --from=ui-build /workspace/static/globals.css /srv/audiobookrequest/static/globals.css
+COPY --from=abr-src /src/audiobookrequest/static /srv/audiobookrequest/static
 COPY docker/start.sh /start.sh
 RUN chmod +x /start.sh
 EXPOSE 8000 8800
