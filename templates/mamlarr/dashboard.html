@@ -143,18 +143,18 @@
     </div>
 
     <!-- Auto-refresh container -->
-    <div id="active-downloads"
+  <div id="active-downloads"
          hx-get="/mamlarr/fragments/active"
          hx-trigger="every 5s"
          hx-swap="innerHTML">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {% for job in active_jobs %}
-          {% set seed_target_hours = seed_target_hours %}
-          {% include "mamlarr/components/job_card.html" %}
-        {% endfor %}
-      </div>
-    </div>
-  </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+       {% for job in active_jobs %}
+         {% set seed_target_hours = seed_target_hours %}
+         {% include "mamlarr/components/job_card.html" %}
+       {% endfor %}
+     </div>
+   </div>
+ </div>
   {% endif %}
 
   <!-- Recent Completed Section -->

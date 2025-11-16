@@ -5,8 +5,13 @@
       <h3 class="card-title text-base line-clamp-2 flex-1">
         {{ job.release.title if job.release else job.guid }}
       </h3>
-      {% set status = job.status %}
-      {% include "mamlarr/components/status_badge.html" %}
+      <div class="flex flex-col items-end gap-1">
+        {% set status = job.status %}
+        {% include "mamlarr/components/status_badge.html" %}
+        <span class="badge badge-outline text-xs">
+          {{ job.provider|default("transmission")|capitalize }}
+        </span>
+      </div>
       {% if job.release and job.release.indexerFlags and "freeleech" in job.release.indexerFlags %}
         <span class="badge badge-accent text-xs">Freeleech</span>
       {% endif %}
