@@ -65,3 +65,4 @@ class DownloadJob(BaseModel):
     seed_seconds: int = 0
     last_seed_timestamp: Optional[datetime] = None
     destination_path: Optional[str] = None
+    provider: str = "transmission"

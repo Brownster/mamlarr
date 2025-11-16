@@ -6,11 +6,13 @@ from typing import Optional
 from urllib.parse import urljoin
 
 from aiohttp import ClientSession
+from torf import Torrent as TorfTorrent
 
 from .log import logger
 
 from .models import CachedResult, DownloadJob, DownloadJobStatus
 from .postprocess import PostProcessingError, PostProcessor
+from .qbit_client import QbitClient
 from .settings import MamServiceSettings
 from .store import JobStore
 from .transmission import MockTransmissionClient, TransmissionClient, TransmissionError
@@ -30,6 +32,11 @@ class DownloadManager:
         self.worker_task: Optional[asyncio.Task] = None
         self.monitor_task: Optional[asyncio.Task] = None
         self.use_mock_data = service_settings.use_mock_data
+        self.provider = (
+            "qbittorrent"
+            if service_settings.use_qbittorrent and not self.use_mock_data
+            else "transmission"
+        )
         self.postprocessor = PostProcessor(
             service_settings.download_directory,
             service_settings.postprocess_tmp_dir,
@@ -38,15 +45,32 @@ class DownloadManager:
         )
         if self.use_mock_data:
             self.transmission = MockTransmissionClient(service_settings)
+            self.qbittorrent = None
         else:
-            if not service_settings.transmission_url:
-                raise ValueError("Transmission URL must be configured")
-            self.transmission = TransmissionClient(
-                http_session,
-                service_settings.transmission_url,
-                username=service_settings.transmission_username,
-                password=service_settings.transmission_password,
-            )
+            if self.provider == "qbittorrent":
+                if not (
+                    service_settings.qbittorrent_url
+                    and service_settings.qbittorrent_username
+                    and service_settings.qbittorrent_password
+                ):
+                    raise ValueError("qBittorrent credentials are required when enabled")
+                self.qbittorrent = QbitClient(
+                    http_session,
+                    service_settings.qbittorrent_url,
+                    service_settings.qbittorrent_username,
+                    service_settings.qbittorrent_password,
+                )
+                self.transmission = None
+            else:
+                if not service_settings.transmission_url:
+                    raise ValueError("Transmission URL must be configured")
+                self.transmission = TransmissionClient(
+                    http_session,
+                    service_settings.transmission_url,
+                    username=service_settings.transmission_username,
+                    password=service_settings.transmission_password,
+                )
+                self.qbittorrent = None
         self._stopping = False
 
     async def start(self):
@@ -93,15 +117,16 @@ class DownloadManager:
         torrent_bytes = await self._download_torrent(cached.raw)
         await self.job_store.update_fields(job.id, torrent_id=str(cached.raw.get("id")))
 
-        transmission_result = await self.transmission.add_torrent(torrent_bytes)
+        add_result = await self._add_torrent(torrent_bytes)
         await self.job_store.update_fields(
             job.id,
-            transmission_id=transmission_result.get("id"),
-            transmission_hash=transmission_result.get("hashString"),
-            message="Torrent added to Transmission",
+            transmission_id=add_result.get("id"),
+            transmission_hash=add_result.get("hashString"),
+            provider=self.provider,
+            message=f"Torrent added to {self.provider}",
         )
         if self.use_mock_data:
-            await self._complete_mock_job(job.id, transmission_result)
+            await self._complete_mock_job(job.id, add_result)
 
     async def _monitor(self):
         interval = max(30, self.settings.seed_check_interval_seconds)
@@ -119,7 +144,7 @@ class DownloadManager:
         hashes = [job.transmission_hash for job in jobs if job.transmission_hash]
         if not hashes:
             return
-        torrent_map = await self.transmission.get_torrents(hashes)
+        torrent_map = await self._fetch_torrents(hashes)
         now = datetime.utcnow()
 
         for job in jobs:
@@ -189,8 +214,12 @@ class DownloadManager:
                 destination_path=str(destination),
                 message=f"Completed -> {destination}",
             )
-            if self.settings.remove_torrent_after_processing and job.transmission_hash:
-                await self.transmission.remove_torrent(job.transmission_hash, delete_data=False)
+            if (
+                self.settings.remove_torrent_after_processing
+                and job.transmission_hash
+                and not self.use_mock_data
+            ):
+                await self._remove_torrent(job.transmission_hash)
         except PostProcessingError as exc:
             await self.job_store.update_status(
                 job_id, DownloadJobStatus.failed, f"Post-processing failed: {exc}"
@@ -212,6 +241,59 @@ class DownloadManager:
             job_id, DownloadJobStatus.processing, "Processing mock download"
         )
         await self._finalize_job(job_id, torrent_snapshot)
+
+    async def _add_torrent(self, torrent_bytes: bytes) -> dict:
+        if self.use_mock_data or self.provider == "transmission":
+            assert self.transmission is not None
+            return await self.transmission.add_torrent(torrent_bytes)
+        assert self.qbittorrent is not None
+        await self.qbittorrent.add_torrent(torrent_bytes)
+        info_hash = TorfTorrent.read_stream(torrent_bytes).infohash.upper()
+        return {"hashString": info_hash}
+
+    async def _fetch_torrents(self, hashes: list[str]) -> dict[str, dict]:
+        if self.use_mock_data or self.provider == "transmission":
+            assert self.transmission is not None
+            return await self.transmission.get_torrents(hashes)
+        result: dict[str, dict] = {}
+        assert self.qbittorrent is not None
+        torrents = await self.qbittorrent.list_torrents(hashes)
+        for tor in torrents:
+            hash_string = (tor.get("hash") or "").upper()
+            if not hash_string:
+                continue
+            total = tor.get("total_size") or tor.get("size") or 0
+            downloaded = tor.get("downloaded") or 0
+            left = max(0, total - downloaded)
+            files_raw = await self.qbittorrent.list_files(hash_string)
+            files = [{"name": f.get("name")} for f in files_raw]
+            result[hash_string] = {
+                "status": self._map_qb_state(tor.get("state")),
+                "leftUntilDone": left,
+                "downloadDir": tor.get("save_path"),
+                "name": tor.get("name"),
+                "files": files,
+            }
+        return result
+
+    def _map_qb_state(self, state: Optional[str]) -> int:
+        if not state:
+            return 0
+        state = state.lower()
+        seeding = {"uploading", "stalledup", "queuedup", "forcedup", "checkingup"}
+        if state in seeding:
+            return 6
+        return 4
+
+    async def _remove_torrent(self, hash_string: str) -> None:
+        if self.use_mock_data:
+            return
+        if self.provider == "transmission":
+            assert self.transmission is not None
+            await self.transmission.remove_torrent(hash_string, delete_data=False)
+        else:
+            assert self.qbittorrent is not None
+            await self.qbittorrent.remove_torrent(hash_string, delete_data=False)
 
     async def _download_torrent(self, raw: dict) -> bytes:
         if self.settings.use_mock_data:

@@ -542,18 +542,23 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             return HTMLResponse(
                 "<div class='text-success text-sm'>Mock mode enabled - connection OK.</div>"
             )
+        manager = app.state.manager
         if settings.use_qbittorrent and not settings.use_transmission:
-            return HTMLResponse(
-                "<div class='text-warning text-sm'>qBittorrent support is being wired up. "
-                "Transmission remains the active provider until Phase 2.</div>",
-                status_code=501,
+            if manager and manager.qbittorrent:
+                await manager.qbittorrent.test_connection()
+                return HTMLResponse(
+                    "<div class='text-success text-sm'>qBittorrent API reachable.</div>"
+                )
+            raise HTTPException(
+                status_code=400,
+                detail="qBittorrent is enabled but not configured or running.",
             )
         if not settings.transmission_url:
             raise HTTPException(
                 status_code=400, detail="Transmission URL not configured."
             )
-        if app.state.manager and not settings.use_mock_data:
-            client = app.state.manager.transmission
+        if manager and not settings.use_mock_data:
+            client = manager.transmission
         else:
             http_session = await _get_http_session()
             client = TransmissionClient(
@@ -589,9 +594,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         manager = app.state.manager
         if job.transmission_hash and manager:
             try:
-                await manager.transmission.remove_torrent(
-                    job.transmission_hash, delete_data=False
-                )
+                await manager._remove_torrent(job.transmission_hash)
             except Exception as exc:
                 logger.error("Failed to remove torrent", error=str(exc))
         await app.state.job_store.delete(job_id)
