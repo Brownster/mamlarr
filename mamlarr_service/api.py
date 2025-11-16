@@ -103,6 +103,28 @@ def _extract_leechers(raw: dict[str, Any]) -> int:
     return 0
 
 
+def _split_multi_value(raw: list[str] | None) -> list[str]:
+    if not raw:
+        return []
+    values: list[str] = []
+    for entry in raw:
+        if not entry:
+            continue
+        parts = [chunk.strip() for chunk in entry.split(",") if chunk.strip()]
+        values.extend(parts)
+    return values
+
+
+def _parse_int_filters(raw: list[str] | None) -> list[int]:
+    values: list[int] = []
+    for chunk in _split_multi_value(raw):
+        try:
+            values.append(int(chunk))
+        except ValueError:
+            logger.debug("MamService: ignoring invalid filter", value=chunk)
+    return values
+
+
 def _determine_guid(raw: dict[str, Any]) -> str:
     for key in ("id", "tid", "tor_id", "torrent_id"):
         value = raw.get(key)
@@ -279,11 +301,21 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         limit: int = Query(100),
         offset: int = Query(0),
         search_type: str = Query("search", alias="type"),
+        categories: list[str] | None = Query(None, alias="cat"),
+        languages: list[str] | None = Query(None, alias="lang"),
     ):
         del search_type  # not used but kept for parity with Prowlarr
+        category_filters = _parse_int_filters(categories)
+        language_filters = _parse_int_filters(languages)
         try:
             client = await _get_mam_client()
-            results = await client.search(query=query, limit=limit, offset=offset)
+            results = await client.search(
+                query=query,
+                limit=limit,
+                offset=offset,
+                categories=category_filters,
+                languages=language_filters,
+            )
         except AuthenticationError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         except SearchError as exc:
