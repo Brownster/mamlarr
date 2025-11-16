@@ -9,9 +9,11 @@ ARG ABR_REF
 RUN git clone --branch ${ABR_REF} --depth=1 ${ABR_REPO} /src/audiobookrequest
 
 FROM node:${NODE_VERSION}-bookworm AS ui-build
-COPY --from=abr-src /src/audiobookrequest/static /workspace/static
-RUN npm install tailwindcss@4.1.12 daisyui@5 && \
-    npx tailwindcss -i /workspace/static/tw.css -o /workspace/static/globals.css
+WORKDIR /workspace
+COPY --from=abr-src /src/audiobookrequest/static ./static
+RUN npm init -y && \
+    npm install --no-audit --no-fund tailwindcss@4.1.12 daisyui@5 && \
+    npx tailwindcss -i ./static/tw.css -o ./static/globals.css
 
 FROM python:${PYTHON_VERSION}-slim AS python-build
 ENV PYTHONDONTWRITEBYTECODE=1 \
