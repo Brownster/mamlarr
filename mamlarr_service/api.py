@@ -47,6 +47,39 @@ class JobResponse(BaseModel):
     job: DownloadJob
 
 
+class SessionCreationHelp(BaseModel):
+    securityPreferencesUrl: str
+    steps: list[str]
+    inactivityWarning: str
+
+
+class SearchFilterEnvInfo(BaseModel):
+    name: str
+    description: str
+    default: Any
+
+
+class ConfigResponse(BaseModel):
+    indexerId: int
+    indexerName: str
+    sessionCreation: SessionCreationHelp
+    searchFilters: list[SearchFilterEnvInfo]
+
+
+SESSION_CREATION_URL = "https://www.myanonamouse.net/preferences/index.php?view=security"
+SESSION_CREATION_STEPS = [
+    "Log into MyAnonamouse in a browser.",
+    "Open My Account → Security → Security Preferences.",
+    "In the Session Creation panel, name a session (for example, 'mamlarr') and optionally lock it to your server's IP.",
+    "Click Create Session and copy the mam_id value for the new entry.",
+    "Paste that cookie into MAM_SERVICE_MAM_SESSION_ID or the UI settings page, then restart/reload mamlarr.",
+]
+INACTIVITY_WARNING = (
+    "To prevent your account from being disabled for inactivity, you must log in and use the tracker regularly. "
+    "If you will be away for an extended period, park your account in the MyAnonamouse preferences."
+)
+
+
 def _split_multi_value(raw: list[str] | None) -> list[str]:
     if not raw:
         return []
@@ -188,6 +221,48 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             name=service_settings.indexer_name,
         )
         return [info.model_dump()]
+
+    @app.get("/config", response_model=ConfigResponse)
+    async def config():
+        settings = app.state.settings
+        search_filters = [
+            SearchFilterEnvInfo(
+                name="MAM_SERVICE_SEARCH_TYPE",
+                description="Which torrents to include when querying MyAnonamouse (all, active, fl, fl-VIP, VIP, nVIP).",
+                default=settings.search_type.value,
+            ),
+            SearchFilterEnvInfo(
+                name="MAM_SERVICE_SEARCH_IN_DESCRIPTION",
+                description="Include matches found only in the torrent description text.",
+                default=settings.search_in_description,
+            ),
+            SearchFilterEnvInfo(
+                name="MAM_SERVICE_SEARCH_IN_SERIES",
+                description="Include matches based on the series metadata field.",
+                default=settings.search_in_series,
+            ),
+            SearchFilterEnvInfo(
+                name="MAM_SERVICE_SEARCH_IN_FILENAMES",
+                description="Allow filename-only matches (slower but can catch sparse releases).",
+                default=settings.search_in_filenames,
+            ),
+            SearchFilterEnvInfo(
+                name="MAM_SERVICE_SEARCH_LANGUAGES",
+                description="Comma-separated list of MyAnonamouse language IDs to restrict search results.",
+                default=settings.search_languages,
+            ),
+        ]
+        session_creation = SessionCreationHelp(
+            securityPreferencesUrl=SESSION_CREATION_URL,
+            steps=SESSION_CREATION_STEPS,
+            inactivityWarning=INACTIVITY_WARNING,
+        )
+        return ConfigResponse(
+            indexerId=settings.indexer_id,
+            indexerName=settings.indexer_name,
+            sessionCreation=session_creation,
+            searchFilters=search_filters,
+        )
 
     async def _map_release(result: MamSearchResult) -> Optional[Release]:
         return Release(
