@@ -17,6 +17,7 @@ uv sync                    # Install dependencies
 Then visit http://localhost:8000/docs to see the API.
 
 **For detailed testing instructions, see [OFFLINE_TESTING_SETUP.md](OFFLINE_TESTING_SETUP.md)**
+<img width="1904" height="857" alt="image" src="https://github.com/user-attachments/assets/7b6d6e79-9d0d-4319-8d15-588f632b5db0" />
 
 ### Production Setup
 
