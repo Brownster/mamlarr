@@ -13,7 +13,7 @@ WORKDIR /workspace
 COPY --from=abr-src /src/audiobookrequest/static ./static
 RUN npm init -y && \
     npm install --no-audit --no-fund tailwindcss@4.1.12 daisyui@5 && \
-    npx tailwindcss tailwindcss -i ./static/tw.css -o ./static/globals.css
+    npx tailwindcss -i ./static/tw.css -o ./static/globals.css
 
 FROM python:${PYTHON_VERSION}-slim AS python-build
 ENV PYTHONDONTWRITEBYTECODE=1 \
