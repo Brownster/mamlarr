@@ -8,9 +8,41 @@ services:
     ports:
       - "8000:8000"
       - "8800:8800"
+    volumes:
+      - ./data:/srv/mamlarr/data
+      - ./downloads:/downloads
+      - ./abr-data:/srv/audiobookrequest/data
     environment:
+      # Port Configuration
       AUDIOBOOKREQUEST_PORT: 8000
       MAMLARR_PORT: 8800
+
+      # AudioBookRequest Database
+      ABR_APP__DATABASE_URL: sqlite:////srv/audiobookrequest/data/audiobookrequest.db
+
+      # API Key
       MAM_SERVICE_API_KEY: ${MAM_SERVICE_API_KEY:-changeme}
-      MAM_SERVICE_MAM_SESSION_ID: ${MAM_SERVICE_MAM_SESSION_ID:-changeme}
+
+      # MyAnonamouse Configuration
+      MAM_SERVICE_MAM_SESSION_ID: ${MAM_SERVICE_MAM_SESSION_ID:-}
+      MAM_SERVICE_MAM_BASE_URL: ${MAM_SERVICE_MAM_BASE_URL:-https://www.myanonamouse.net}
+
+      # Transmission RPC
       MAM_SERVICE_TRANSMISSION_URL: ${MAM_SERVICE_TRANSMISSION_URL:-http://transmission:9091/transmission/rpc}
+      MAM_SERVICE_TRANSMISSION_USERNAME: ${MAM_SERVICE_TRANSMISSION_USERNAME:-}
+      MAM_SERVICE_TRANSMISSION_PASSWORD: ${MAM_SERVICE_TRANSMISSION_PASSWORD:-}
+
+      # Download Settings
+      MAM_SERVICE_DOWNLOAD_DIRECTORY: ${MAM_SERVICE_DOWNLOAD_DIRECTORY:-/downloads}
+      MAM_SERVICE_SEED_TARGET_HOURS: ${MAM_SERVICE_SEED_TARGET_HOURS:-72}
+      MAM_SERVICE_ENABLE_AUDIO_MERGE: ${MAM_SERVICE_ENABLE_AUDIO_MERGE:-true}
+      MAM_SERVICE_REMOVE_TORRENT_AFTER_PROCESSING: ${MAM_SERVICE_REMOVE_TORRENT_AFTER_PROCESSING:-true}
+
+      # Tracker Metrics
+      MAM_SERVICE_USER_RATIO: ${MAM_SERVICE_USER_RATIO:-1.0}
+      MAM_SERVICE_RATIO_GOAL: ${MAM_SERVICE_RATIO_GOAL:-1.0}
+      MAM_SERVICE_BONUS_POINTS: ${MAM_SERVICE_BONUS_POINTS:-0}
+      MAM_SERVICE_FREELEECH_ALERTS_ENABLED: ${MAM_SERVICE_FREELEECH_ALERTS_ENABLED:-true}
+
+      # Mock Mode (disable for real connections)
+      MAM_SERVICE_USE_MOCK_DATA: ${MAM_SERVICE_USE_MOCK_DATA:-false}

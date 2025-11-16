@@ -23,6 +23,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     AUDIOBOOKREQUEST_PORT=8000 \
     MAMLARR_PORT=8800
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /srv
 COPY --from=python-build /usr/local /usr/local
 COPY --from=abr-src /src/audiobookrequest /srv/audiobookrequest
