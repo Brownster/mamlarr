@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
 
-from aiohttp import ClientSession
+from aiohttp import ClientError, ClientSession
 from fastapi import (
     Depends,
     FastAPI,
@@ -512,7 +512,21 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
                 username=settings.transmission_username,
                 password=settings.transmission_password,
             )
-        await client.test_connection()
+        try:
+            await client.test_connection()
+        except ClientError as exc:
+            logger.warning("Transmission test failed", error=str(exc))
+            return HTMLResponse(
+                f"<div class='text-error text-sm'>Connection failed: {exc}</div>",
+                status_code=502,
+            )
+        except Exception as exc:
+            logger.error("Transmission test error", error=str(exc))
+            return HTMLResponse(
+                "<div class='text-error text-sm'>Unexpected error testing Transmission. "
+                "Check logs for details.</div>",
+                status_code=500,
+            )
         return HTMLResponse(
             "<div class='text-success text-sm'>Transmission RPC reachable.</div>"
         )
@@ -540,9 +554,19 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
     # Include UI router
     from .ui import create_ui_router
     # When running standalone, mount shared static assets so UI has CSS/JS.
-    root_dir = Path(__file__).resolve().parents[3]
-    static_dir = root_dir / "static"
-    if static_dir.exists():
+    # Try multiple possible locations for static files
+    possible_static_dirs = [
+        Path("/srv/audiobookrequest/static"),  # Docker container
+        Path(__file__).resolve().parents[3] / "static",  # Local development
+        Path(__file__).resolve().parents[2] / "static",  # Alternate location
+    ]
+    static_dir = None
+    for path in possible_static_dirs:
+        if path.exists():
+            static_dir = path
+            break
+
+    if static_dir:
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     ui_router = create_ui_router(service_settings)
