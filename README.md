@@ -25,9 +25,12 @@ cd mamlarr
 uv sync  # Install dependencies
 export MAM_SERVICE_API_KEY="supersecret"
 export MAM_SERVICE_MAM_SESSION_ID="your_mam_cookie"
-export MAM_SERVICE_TRANSMISSION_URL="http://seedbox:9091/transmission/rpc"
-export MAM_SERVICE_TRANSMISSION_USERNAME="transmission"
-export MAM_SERVICE_TRANSMISSION_PASSWORD="password"
+export MAM_SERVICE_TRANSMISSION_URL="https://tr-XX-XX-XX-XX.a.seedbox.vip:443/transmission/rpc"
+export MAM_SERVICE_TRANSMISSION_USERNAME="seedbox_username"
+export MAM_SERVICE_TRANSMISSION_PASSWORD="seedbox_password"
+export MAM_SERVICE_QBITTORRENT_URL="https://seedbox:443/api/v2"
+export MAM_SERVICE_QBITTORRENT_USERNAME="seedbox_username"
+export MAM_SERVICE_QBITTORRENT_PASSWORD="seedbox_password"
 export MAM_SERVICE_DOWNLOAD_DIRECTORY="/mnt/storage/audiobooks"
 
 uvicorn mamlarr_service.api:app --host 0.0.0.0 --port 8000

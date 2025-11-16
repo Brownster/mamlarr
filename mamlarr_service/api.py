@@ -195,6 +195,19 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
     app.state.restart_manager = _restart_manager
     app.state.apply_settings_update = _apply_settings_update
 
+    async def _toggle_provider(*, use_transmission: Optional[bool] = None, use_qbittorrent: Optional[bool] = None):
+        current = app.state.settings
+        new_transmission = current.use_transmission if use_transmission is None else use_transmission
+        new_qb = current.use_qbittorrent if use_qbittorrent is None else use_qbittorrent
+        if new_transmission and new_qb:
+            raise HTTPException(status_code=400, detail="Only one download provider can be enabled at a time.")
+        if not new_transmission and not new_qb:
+            raise HTTPException(status_code=400, detail="At least one download provider must remain enabled.")
+        await _apply_settings_update(
+            {"use_transmission": new_transmission, "use_qbittorrent": new_qb},
+            restart_manager=True,
+        )
+
     async def require_api_key(x_api_key: str = Header(..., alias="X-Api-Key")) -> None:
         if x_api_key != service_settings.api_key:
             raise HTTPException(
@@ -352,6 +365,13 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         )
         return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
 
+    @app.put("/mamlarr/api/settings/qb-url")
+    async def update_qb_url(request: Request):
+        data = await request.form()
+        url = (data.get("url") or "").strip() or None
+        await _apply_settings_update({"qbittorrent_url": url})
+        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+
     @app.put("/mamlarr/api/settings/transmission-username")
     async def update_transmission_username(request: Request):
         data = await request.form()
@@ -372,6 +392,20 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             restart_manager=bool(app.state.settings.transmission_url)
             or app.state.settings.use_mock_data,
         )
+        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+
+    @app.put("/mamlarr/api/settings/qb-username")
+    async def update_qb_username(request: Request):
+        data = await request.form()
+        username = (data.get("username") or "").strip() or None
+        await _apply_settings_update({"qbittorrent_username": username})
+        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+
+    @app.put("/mamlarr/api/settings/qb-password")
+    async def update_qb_password(request: Request):
+        data = await request.form()
+        password = (data.get("password") or "").strip() or None
+        await _apply_settings_update({"qbittorrent_password": password})
         return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
 
     @app.put("/mamlarr/api/settings/seed-hours")
@@ -455,6 +489,16 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         )
         return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
 
+    @app.put("/mamlarr/api/settings/use-transmission")
+    async def set_use_transmission():
+        await _toggle_provider(use_transmission=True, use_qbittorrent=False)
+        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+
+    @app.put("/mamlarr/api/settings/use-qbittorrent")
+    async def set_use_qbittorrent():
+        await _toggle_provider(use_transmission=False, use_qbittorrent=True)
+        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+
     @app.put("/mamlarr/api/settings/ratio")
     async def update_ratio(request: Request):
         data = await request.form()
@@ -497,6 +541,12 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         if settings.use_mock_data:
             return HTMLResponse(
                 "<div class='text-success text-sm'>Mock mode enabled - connection OK.</div>"
+            )
+        if settings.use_qbittorrent and not settings.use_transmission:
+            return HTMLResponse(
+                "<div class='text-warning text-sm'>qBittorrent support is being wired up. "
+                "Transmission remains the active provider until Phase 2.</div>",
+                status_code=501,
             )
         if not settings.transmission_url:
             raise HTTPException(

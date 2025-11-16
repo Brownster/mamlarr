@@ -192,6 +192,9 @@ async def settings_page(request: Request):
         "transmission_url": settings.transmission_url,
         "transmission_username": settings.transmission_username,
         "transmission_password": settings.transmission_password,
+        "qbittorrent_url": settings.qbittorrent_url,
+        "qbittorrent_username": settings.qbittorrent_username,
+        "qbittorrent_password": settings.qbittorrent_password,
         "seed_target_hours": settings.seed_target_hours,
         "download_directory": str(settings.download_directory),
         "enable_audio_merge": settings.enable_audio_merge,
@@ -201,6 +204,8 @@ async def settings_page(request: Request):
         "ratio_goal": settings.ratio_goal,
         "bonus_points": settings.bonus_points,
         "freeleech_alerts_enabled": settings.freeleech_alerts_enabled,
+        "use_transmission": settings.use_transmission,
+        "use_qbittorrent": settings.use_qbittorrent,
     }
 
     context = get_base_context(request, settings)

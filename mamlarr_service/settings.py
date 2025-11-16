@@ -76,6 +76,20 @@ class MamServiceSettings(BaseSettings):
         False,
         description="Use built-in mock tracker/transmission for local testing.",
     )
+    qbittorrent_url: Optional[str] = Field(
+        default=None,
+        description="qBittorrent WebUI base URL (e.g. https://seedbox:443/api/v2).",
+    )
+    qbittorrent_username: Optional[str] = Field(default=None)
+    qbittorrent_password: Optional[str] = Field(default=None)
+    use_transmission: bool = Field(
+        True,
+        description="Transmission download provider enabled.",
+    )
+    use_qbittorrent: bool = Field(
+        False,
+        description="qBittorrent download provider enabled.",
+    )
     user_ratio: float = Field(
         1.0,
         description="Current global ratio displayed in the UI.",

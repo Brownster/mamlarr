@@ -44,6 +44,19 @@
       <h2 class="text-lg font-semibold">Transmission</h2>
       <p class="text-sm opacity-60">Configure your Transmission RPC connection</p>
 
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-primary"
+                 {% if config.use_transmission %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/use-transmission" />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Use Transmission</span>
+            <span class="label-text-alt opacity-60">Only one provider can be active at a time.</span>
+          </div>
+        </label>
+      </div>
+
       <label for="transmission-url" class="pt-2">RPC URL</label>
       <form class="join w-full" hx-put="/mamlarr/api/settings/transmission-url">
         <input id="transmission-url"
@@ -75,6 +88,62 @@
                class="input join-item w-full" />
         <button class="join-item btn">
           {% if config.transmission_password %}Update{% else %}Add{% endif %}
+        </button>
+      </form>
+    </div>
+
+    <!-- qBittorrent Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">qBittorrent</h2>
+      <p class="text-sm opacity-60">Optional alternative download provider</p>
+
+      <div class="alert alert-info text-sm">
+        <span>Provider selection is wired up; download actions will use Transmission until qBittorrent support lands in later phases.</span>
+      </div>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-accent"
+                 {% if config.use_qbittorrent %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/use-qbittorrent" />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Use qBittorrent</span>
+            <span class="label-text-alt opacity-60">Disables Transmission when enabled.</span>
+          </div>
+        </label>
+      </div>
+
+      <label for="qb-url" class="pt-2">WebUI URL</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/qb-url">
+        <input id="qb-url"
+               name="url"
+               type="url"
+               value="{{ config.qbittorrent_url or '' }}"
+               placeholder="https://seedbox:443/api/v2"
+               class="input join-item w-full" />
+        <button class="join-item btn">Update</button>
+      </form>
+
+      <label for="qb-username" class="pt-2">Username</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/qb-username">
+        <input id="qb-username"
+               name="username"
+               type="text"
+               value="{{ config.qbittorrent_username or '' }}"
+               class="input join-item w-full" />
+        <button class="join-item btn">Update</button>
+      </form>
+
+      <label for="qb-password" class="pt-2">Password</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/qb-password">
+        <input id="qb-password"
+               name="password"
+               type="password"
+               {% if config.qbittorrent_password %}placeholder="●●●●●●●●●●●●●●●●●"{% endif %}
+               class="input join-item w-full" />
+        <button class="join-item btn">
+          {% if config.qbittorrent_password %}Update{% else %}Add{% endif %}
         </button>
       </form>
     </div>
