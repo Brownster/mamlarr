@@ -9,8 +9,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     env:
-      GHCR_OWNER: ${{ github.repository_owner || 'unknown' }}
-    steps:
+      GHCR_OWNER: ${{ github.repository_owner }}
     steps:
       - name: Checkout AudioBookRequest + Mamlarr
         uses: actions/checkout@v4
