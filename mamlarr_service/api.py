@@ -543,16 +543,25 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
                 "<div class='text-success text-sm'>Mock mode enabled - connection OK.</div>"
             )
         manager = app.state.manager
-        if settings.use_qbittorrent and not settings.use_transmission:
-            if manager and manager.qbittorrent:
-                await manager.qbittorrent.test_connection()
-                return HTMLResponse(
-                    "<div class='text-success text-sm'>qBittorrent API reachable.</div>"
+        if settings.use_qbittorrent:
+            qb_client = getattr(manager, "qbittorrent", None) if manager else None
+            if qb_client is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="qBittorrent is enabled but not configured or running.",
                 )
-            raise HTTPException(
-                status_code=400,
-                detail="qBittorrent is enabled but not configured or running.",
+            try:
+                await qb_client.test_connection()
+            except Exception as exc:
+                logger.warning("qBittorrent test failed", error=str(exc))
+                return HTMLResponse(
+                    f"<div class='text-error text-sm'>qBittorrent connection failed: {exc}</div>",
+                    status_code=502,
+                )
+            return HTMLResponse(
+                "<div class='text-success text-sm'>qBittorrent API reachable.</div>"
             )
+
         if not settings.transmission_url:
             raise HTTPException(
                 status_code=400, detail="Transmission URL not configured."
