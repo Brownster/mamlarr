@@ -51,10 +51,19 @@ class MyAnonamouseClient:
             "tor[searchIn]": "torrents",
             "tor[srchIn][author]": "true",
             "tor[srchIn][title]": "true",
-            "tor[searchType]": "active",
+            "tor[searchType]": self._settings.search_type.value,
             "startNumber": offset,
             "perpage": limit,
         }
+
+        if self._settings.search_in_description:
+            params["tor[srchIn][description]"] = "true"
+        if self._settings.search_in_series:
+            params["tor[srchIn][series]"] = "true"
+        if self._settings.search_in_filenames:
+            params["tor[srchIn][filenames]"] = "true"
+        if self._settings.search_languages:
+            params["tor[language][]"] = [str(lang) for lang in self._settings.search_languages]
 
         endpoint = f"/tor/js/loadSearchJSONbasic.php?{urlencode(params, doseq=True)}"
         url = urljoin(self._settings.mam_base_url, endpoint)

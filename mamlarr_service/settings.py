@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class SearchType(str, Enum):
+    """Subset of search type choices exposed by Jackett for MAM."""
+
+    active = "active"
+    dying = "dying"
+    dead = "dead"
+    all = "all"
 
 
 class MamServiceSettings(BaseSettings):
@@ -32,6 +42,26 @@ class MamServiceSettings(BaseSettings):
         description="Destination directory for processed audiobooks.",
     )
     search_category_id: int = Field(13, description="Default MyAnonamouse category for audiobooks.")
+    search_type: SearchType = Field(
+        SearchType.active,
+        description="Which torrents to include when querying MAM.",
+    )
+    search_in_description: bool = Field(
+        False,
+        description="Include torrent descriptions when matching text queries.",
+    )
+    search_in_series: bool = Field(
+        True,
+        description="Include series metadata when matching text queries.",
+    )
+    search_in_filenames: bool = Field(
+        False,
+        description="Match terms that only appear in file names.",
+    )
+    search_languages: list[int] = Field(
+        default_factory=list,
+        description="Optional list of language IDs to filter results.",
+    )
     search_ttl_seconds: int = Field(
         3600,
         description="TTL for cached search results.",
@@ -112,6 +142,20 @@ class MamServiceSettings(BaseSettings):
         env_file=".env",
         extra="ignore",
     )
+
+    @field_validator("search_languages", mode="before")
+    @classmethod
+    def _coerce_languages(
+        cls, value: str | Iterable[int] | None
+    ) -> list[int]:  # pragma: no cover - exercised through settings load
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            items = [chunk.strip() for chunk in value.split(",") if chunk.strip()]
+            return [int(chunk) for chunk in items]
+        if isinstance(value, Iterable):
+            return [int(chunk) for chunk in value]
+        raise TypeError("search_languages must be a comma separated string or iterable of ints")
 
 
 def load_settings() -> MamServiceSettings:
