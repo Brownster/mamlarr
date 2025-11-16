@@ -42,3 +42,19 @@ Point AudioBookRequest’s “Prowlarr” settings at this FastAPI instance and 
 5. Marks the job `completed`, optionally removing the torrent from Transmission.
 
 See `ROADMAP.md` for the full implementation plan and outstanding work.
+
+## Combined Docker with AudioBookRequest
+
+To run AudioBookRequest and Mamlarr in a single container, use the provided Dockerfile + compose stack:
+
+```bash
+cd mamlarr
+docker compose up --build
+```
+
+This builds both apps and exposes:
+
+- AudioBookRequest → http://localhost:8000
+- Mamlarr → http://localhost:8800/mamlarr/
+
+CI integration: `.github/workflows/docker-build.yml` builds and pushes the image to GHCR (`ghcr.io/<owner>/abr-mamlarr:latest`) whenever `main/master` changes.

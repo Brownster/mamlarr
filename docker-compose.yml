@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  app:
+    build:
+      context: ../
+      dockerfile: mamlarr/docker/Dockerfile
+    image: brownster/abr-mamlarr:latest
+    container_name: abr-mamlarr
+    ports:
+      - "8000:8000"
+      - "8800:8800"
+    environment:
+      AUDIOBOOKREQUEST_PORT: 8000
+      MAMLARR_PORT: 8800
+      MAM_SERVICE_API_KEY: ${MAM_SERVICE_API_KEY:-changeme}
+      MAM_SERVICE_MAM_SESSION_ID: ${MAM_SERVICE_MAM_SESSION_ID:-changeme}
+      MAM_SERVICE_TRANSMISSION_URL: ${MAM_SERVICE_TRANSMISSION_URL:-http://transmission:9091/transmission/rpc}
+    volumes:
+      - abr-data:/srv/data
+
+volumes:
+  abr-data:
