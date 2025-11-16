@@ -100,3 +100,12 @@ class QbitClient:
     async def test_connection(self) -> None:
         await self._ensure_auth()
         await self._request("GET", "api/v2/app/version")
+
+    async def list_files(self, hash_string: str) -> list[dict]:
+        await self._ensure_auth()
+        data = await self._request(
+            "GET", "api/v2/torrents/files", params={"hash": hash_string}
+        )
+        if isinstance(data, list):
+            return data
+        return []
