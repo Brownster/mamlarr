@@ -43,7 +43,7 @@ class MamServiceSettings(BaseSettings):
     )
     search_category_id: int = Field(13, description="Default MyAnonamouse category for audiobooks.")
     search_type: SearchType = Field(
-        SearchType.active,
+        SearchType.all,
         description="Which torrents to include when querying MAM.",
     )
     search_in_description: bool = Field(

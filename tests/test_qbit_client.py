@@ -1,6 +1,6 @@
 import asyncio
 import pytest
-from aiohttp import ClientSession, web
+from aiohttp import ClientSession, CookieJar, web
 
 from mamlarr_service.qbit_client import QbitClient
 
@@ -53,7 +53,7 @@ async def test_qbit_client_happy_path(aiohttp_server):
     app.router.add_post("/api/v2/torrents/delete", delete)
 
     server = await aiohttp_server(app)
-    async with ClientSession(cookie_jar=web.CookieJar()) as session:
+    async with ClientSession(cookie_jar=CookieJar()) as session:
         client = QbitClient(
             session,
             str(server.make_url("")),

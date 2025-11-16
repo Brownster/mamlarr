@@ -140,7 +140,7 @@ export MAM_SERVICE_DOWNLOAD_DIRECTORY="/mnt/storage/audiobooks"
 export MAM_SERVICE_SEED_TARGET_HOURS="72"
 export MAM_SERVICE_ENABLE_AUDIO_MERGE="true"
 export MAM_SERVICE_REMOVE_TORRENT_AFTER_PROCESSING="true"
-export MAM_SERVICE_SEARCH_TYPE="active"
+export MAM_SERVICE_SEARCH_TYPE="all"
 export MAM_SERVICE_SEARCH_IN_DESCRIPTION="false"
 export MAM_SERVICE_SEARCH_IN_SERIES="true"
 export MAM_SERVICE_SEARCH_IN_FILENAMES="false"
@@ -174,12 +174,14 @@ Settings changed via the UI are saved to `data/settings.json` and override envir
 
 ## Getting Your MAM Session Cookie
 
-1. Log into MyAnonymouse
-2. Open browser DevTools (F12)
-3. Go to Application → Cookies
-4. Find `mam_id` cookie
-5. Copy the value
-6. Paste in settings or set `MAM_SERVICE_MAM_SESSION_ID`
+Jackett’s guidance for MyAnonamouse applies here too. Follow [`docs/mam_setup.md`](docs/mam_setup.md) or the summary below:
+
+1. Log into MyAnonamouse in a browser.
+2. Navigate to **My Account → Security → Security Preferences** (or open `https://www.myanonamouse.net/preferences/index.php?view=security`).
+3. Use the **Session Creation** form to name a session (for example, `mamlarr`) and add the server’s IP if it is static.
+4. Click **Create Session**, then copy the `mam_id` value that appears for the new entry.
+5. Paste the cookie into `MAM_SERVICE_MAM_SESSION_ID` (or the Mamlarr UI settings page) and restart/reload the service.
+6. Remember the inactivity warning from MyAnonamouse: log in and use the site regularly or park your account if you will be away.
 
 ## Features
 

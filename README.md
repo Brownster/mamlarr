@@ -33,7 +33,7 @@ export MAM_SERVICE_QBITTORRENT_URL="https://seedbox:443/api/v2"
 export MAM_SERVICE_QBITTORRENT_USERNAME="seedbox_username"
 export MAM_SERVICE_QBITTORRENT_PASSWORD="seedbox_password"
 export MAM_SERVICE_DOWNLOAD_DIRECTORY="/mnt/storage/audiobooks"
-export MAM_SERVICE_SEARCH_TYPE="active"
+export MAM_SERVICE_SEARCH_TYPE="all"
 export MAM_SERVICE_SEARCH_IN_DESCRIPTION="false"
 export MAM_SERVICE_SEARCH_IN_SERIES="true"
 export MAM_SERVICE_SEARCH_IN_FILENAMES="false"
@@ -67,3 +67,17 @@ This builds both apps and exposes:
 - Mamlarr → http://localhost:8800/mamlarr/
 
 CI integration: `.github/workflows/docker-build.yml` builds and pushes the image to GHCR (`ghcr.io/<owner>/abr-mamlarr:latest`) whenever `main/master` changes.
+
+### MyAnonamouse session creation help
+
+Jackett’s “Security Preferences → Session Creation” workflow is documented in [`docs/mam_setup.md`](docs/mam_setup.md). Follow those steps to mint a dedicated `mam_id` cookie, note the inactivity warning from MyAnonamouse, and paste the resulting value into `MAM_SERVICE_MAM_SESSION_ID` (or the UI settings page). The same instructions, plus the current search-filter defaults, are also available from the FastAPI [`GET /config`](#fastapi-config-helper) endpoint so UIs can surface them inline.
+
+### FastAPI config helper
+
+Mamlarr exposes a lightweight [`GET /config`](http://localhost:8000/config) endpoint that returns:
+
+- The Jackett-style “security preferences → session creation” checklist.
+- The inactivity warning text quoted by MyAnonamouse.
+- Metadata for the search filter environment variables (`MAM_SERVICE_SEARCH_TYPE`, `MAM_SERVICE_SEARCH_IN_DESCRIPTION`, `MAM_SERVICE_SEARCH_IN_SERIES`, `MAM_SERVICE_SEARCH_IN_FILENAMES`, `MAM_SERVICE_SEARCH_LANGUAGES`).
+
+That JSON payload gives downstream dashboards (AudioBookRequest, the standalone UI, etc.) everything they need to show the same instructions documented above.
