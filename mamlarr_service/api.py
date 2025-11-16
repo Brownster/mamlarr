@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
-from uuid import uuid4
 
 from aiohttp import ClientError, ClientSession
 from fastapi import (
@@ -21,7 +19,12 @@ from pydantic import BaseModel
 
 from .log import logger
 
-from .mam_client import AuthenticationError, MyAnonamouseClient, SearchError
+from .mam_client import (
+    AuthenticationError,
+    MamSearchResult,
+    MyAnonamouseClient,
+    SearchError,
+)
 from .manager import DownloadManager
 from .models import DownloadJob, DownloadJobStatus, IndexerInfo, Release
 from .settings import MamServiceSettings, load_settings
@@ -44,65 +47,6 @@ class JobResponse(BaseModel):
     job: DownloadJob
 
 
-def _coerce_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _coerce_title(result: dict[str, Any], fallback: str) -> str:
-    for key in (
-        "title",
-        "name",
-        "torTitle",
-        "torname",
-        "rawName",
-        "book_title",
-        "torrent_name",
-    ):
-        value = result.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return fallback
-
-
-def _coerce_datetime(value: Any) -> str:
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value).astimezone(timezone.utc).isoformat()
-        except ValueError:
-            pass
-        try:
-            return datetime.fromtimestamp(float(value), tz=timezone.utc).isoformat()
-        except (TypeError, ValueError):
-            pass
-    return datetime.now(tz=timezone.utc).isoformat()
-
-
-def _extract_size(raw: dict[str, Any]) -> int:
-    for key in ("size", "size_bytes", "bytes", "filesize", "torrent_size"):
-        if raw.get(key) is not None:
-            return _coerce_int(raw[key])
-    return 0
-
-
-def _extract_seeders(raw: dict[str, Any]) -> int:
-    for key in ("seeders", "seed", "seeders_total", "leech_seeders"):
-        if raw.get(key) is not None:
-            return _coerce_int(raw[key])
-    return 0
-
-
-def _extract_leechers(raw: dict[str, Any]) -> int:
-    for key in ("leechers", "leeches", "leech", "leechers_total"):
-        if raw.get(key) is not None:
-            return _coerce_int(raw[key])
-    return 0
-
-
 def _split_multi_value(raw: list[str] | None) -> list[str]:
     if not raw:
         return []
@@ -123,27 +67,6 @@ def _parse_int_filters(raw: list[str] | None) -> list[int]:
         except ValueError:
             logger.debug("MamService: ignoring invalid filter", value=chunk)
     return values
-
-
-def _determine_guid(raw: dict[str, Any]) -> str:
-    for key in ("id", "tid", "tor_id", "torrent_id"):
-        value = raw.get(key)
-        if value:
-            return f"mam-{value}"
-    return f"mam-{uuid4()}"
-
-
-def _flags_from_result(raw: dict[str, Any]) -> list[str]:
-    flags: set[str] = set()
-    if raw.get("personal_freeleech") in (1, "1", True):
-        flags.update({"personal_freeleech", "freeleech"})
-    if raw.get("free") in (1, "1", True):
-        flags.update({"free", "freeleech"})
-    if raw.get("fl_vip") in (1, "1", True):
-        flags.update({"fl_vip", "freeleech"})
-    if raw.get("vip") in (1, "1", True):
-        flags.add("vip")
-    return sorted(flags)
 
 
 def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
@@ -266,32 +189,22 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         )
         return [info.model_dump()]
 
-    async def _map_release(
-        result: dict[str, Any], fallback_title: str
-    ) -> Optional[Release]:
-        guid = _determine_guid(result)
-        title = _coerce_title(result, fallback_title)
-        publish_date = _coerce_datetime(result.get("added") or result.get("timestamp"))
-        size = _extract_size(result)
-        seeders = _extract_seeders(result)
-        leechers = _extract_leechers(result)
-        info_url = None
-        for key in ("id", "tid", "tor_id", "torrent_id"):
-            if result.get(key):
-                info_url = f"{service_settings.mam_base_url.rstrip('/')}/t/{result[key]}"
-                break
-
+    async def _map_release(result: MamSearchResult) -> Optional[Release]:
         return Release(
-            guid=guid,
+            guid=result.guid,
             indexerId=service_settings.indexer_id,
             indexer=service_settings.indexer_name,
-            title=title,
-            seeders=seeders,
-            leechers=leechers,
-            size=size,
-            infoUrl=info_url,
-            indexerFlags=_flags_from_result(result),
-            publishDate=publish_date,
+            title=result.title,
+            seeders=result.seeders,
+            leechers=result.leechers,
+            size=result.size,
+            infoUrl=result.details,
+            indexerFlags=result.flags,
+            publishDate=result.publish_date,
+            downloadUrl=result.link,
+            peers=result.peers,
+            downloadVolumeFactor=result.download_volume_factor,
+            minimumSeedTime=result.minimum_seed_time,
         )
 
     @app.get("/api/v1/search")
@@ -323,10 +236,10 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
 
         releases: list[Release] = []
         for result in results:
-            release = await _map_release(result, fallback_title=query)
+            release = await _map_release(result)
             if release is None:
                 continue
-            await app.state.search_store.save(release, result)
+            await app.state.search_store.save(release, result.raw)
             releases.append(release)
         return [r.model_dump() for r in releases]
 
