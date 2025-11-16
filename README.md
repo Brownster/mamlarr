@@ -33,6 +33,11 @@ export MAM_SERVICE_QBITTORRENT_URL="https://seedbox:443/api/v2"
 export MAM_SERVICE_QBITTORRENT_USERNAME="seedbox_username"
 export MAM_SERVICE_QBITTORRENT_PASSWORD="seedbox_password"
 export MAM_SERVICE_DOWNLOAD_DIRECTORY="/mnt/storage/audiobooks"
+export MAM_SERVICE_SEARCH_TYPE="active"
+export MAM_SERVICE_SEARCH_IN_DESCRIPTION="false"
+export MAM_SERVICE_SEARCH_IN_SERIES="true"
+export MAM_SERVICE_SEARCH_IN_FILENAMES="false"
+export MAM_SERVICE_SEARCH_LANGUAGES=""  # comma-separated language IDs
 
 uvicorn mamlarr_service.api:app --host 0.0.0.0 --port 8000
 ```
