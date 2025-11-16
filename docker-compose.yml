@@ -1,11 +1,10 @@
 version: "3.9"
 services:
-  app:
+  abr-mamlarr:
     build:
-      context: ../
-      dockerfile: mamlarr/docker/Dockerfile
-    image: brownster/abr-mamlarr:latest
-    container_name: abr-mamlarr
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ghcr.io/brownster/abr-mamlarr:latest
     ports:
       - "8000:8000"
       - "8800:8800"
@@ -15,8 +14,3 @@ services:
       MAM_SERVICE_API_KEY: ${MAM_SERVICE_API_KEY:-changeme}
       MAM_SERVICE_MAM_SESSION_ID: ${MAM_SERVICE_MAM_SESSION_ID:-changeme}
       MAM_SERVICE_TRANSMISSION_URL: ${MAM_SERVICE_TRANSMISSION_URL:-http://transmission:9091/transmission/rpc}
-    volumes:
-      - abr-data:/srv/data
-
-volumes:
-  abr-data:

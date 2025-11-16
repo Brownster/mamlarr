@@ -1,39 +1,39 @@
-# multi-stage build for combined AudioBookRequest + Mamlarr runtime
 ARG PYTHON_VERSION=3.12
 ARG NODE_VERSION=20
+ARG ABR_REPO=https://github.com/Brownster/audiobookrequest.git
+ARG ABR_REF=main
 
-FROM python:${PYTHON_VERSION}-slim AS base
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=off \
-    PATH="/opt/venv/bin:$PATH"
-RUN apt-get update && apt-get install -y build-essential curl git && rm -rf /var/lib/apt/lists/*
-RUN python -m venv /opt/venv
-RUN /opt/venv/bin/pip install --upgrade pip
+FROM alpine/git AS abr-src
+ARG ABR_REPO
+ARG ABR_REF
+RUN git clone --branch ${ABR_REF} --depth=1 ${ABR_REPO} /src/audiobookrequest
 
 FROM node:${NODE_VERSION}-bookworm AS ui-build
-WORKDIR /tmp/ui
-COPY static ./static
-COPY templates ./templates
-## install tailwind/daisy to build compiled css
+COPY --from=abr-src /src/audiobookrequest/static /workspace/static
 RUN npm install tailwindcss@4.1.12 daisyui@5 && \
-    npx tailwindcss -i static/tw.css -o static/globals.css
+    npx tailwindcss -i /workspace/static/tw.css -o /workspace/static/globals.css
 
-FROM base AS install
-WORKDIR /srv
-# install AudioBookRequest
-COPY ../pyproject.toml ../uv.lock ./
-RUN pip install uv && uv pip install --system .
-# install Mamlarr as package
-COPY ../mamlarr ./mamlarr
-RUN cd mamlarr && pip install .
+FROM python:${PYTHON_VERSION}-slim AS python-build
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y build-essential curl && rm -rf /var/lib/apt/lists/*
+RUN pip install --upgrade pip uv
+COPY --from=abr-src /src/audiobookrequest /srv/audiobookrequest
+COPY . /srv/mamlarr
+RUN uv pip install --system /srv/audiobookrequest && \
+    uv pip install --system /srv/mamlarr
 
-FROM base AS runtime
-WORKDIR /srv/app
-COPY --from=install /opt/venv /opt/venv
-COPY --from=ui-build /tmp/ui/static/globals.css /srv/static/globals.css
-ENV AUDIOBOOKREQUEST_PORT=8000 \
+FROM python:${PYTHON_VERSION}-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    AUDIOBOOKREQUEST_PORT=8000 \
     MAMLARR_PORT=8800
+WORKDIR /srv
+COPY --from=python-build /usr/local /usr/local
+COPY --from=abr-src /src/audiobookrequest /srv/audiobookrequest
+COPY . /srv/mamlarr
+COPY --from=ui-build /workspace/static/globals.css /srv/audiobookrequest/static/globals.css
 COPY docker/start.sh /start.sh
+RUN chmod +x /start.sh
 EXPOSE 8000 8800
 ENTRYPOINT ["/start.sh"]
