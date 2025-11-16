@@ -1,0 +1,211 @@
+{% extends "mamlarr/base.html" %}
+
+{% block head %}
+<title>Mamlarr - Downloads</title>
+{% endblock head %}
+
+{% block body %}
+<div class="w-screen flex flex-col items-center justify-center p-6 sm:p-8 overflow-x-hidden gap-6">
+  <!-- Header -->
+  <div class="w-full max-w-7xl">
+    <div class="flex justify-between items-center mb-4">
+      <div>
+        <h1 class="text-4xl font-bold text-left">Download Manager</h1>
+        <p class="text-lg opacity-70 mt-1">Manage your MyAnonymouse downloads</p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/mamlarr/jobs" class="btn btn-outline gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          All Jobs
+        </a>
+        <a href="/mamlarr/settings" class="btn btn-ghost gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          </svg>
+          Settings
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="w-full max-w-7xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="stats shadow-md">
+      <div class="stat">
+        <div class="stat-figure text-info">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+          </svg>
+        </div>
+        <div class="stat-title">Active</div>
+        <div class="stat-value text-info">{{ stats.active_count }}</div>
+        <div class="stat-desc">{{ stats.downloading_count }} downloading</div>
+      </div>
+    </div>
+
+    <div class="stats shadow-md">
+      <div class="stat">
+        <div class="stat-figure text-warning">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
+        </div>
+        <div class="stat-title">Seeding</div>
+        <div class="stat-value text-warning">{{ stats.seeding_count }}</div>
+        <div class="stat-desc">Meeting requirements</div>
+      </div>
+    </div>
+
+    <div class="stats shadow-md">
+      <div class="stat">
+        <div class="stat-figure text-success">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div class="stat-title">Completed</div>
+        <div class="stat-value text-success">{{ stats.completed_count }}</div>
+        <div class="stat-desc">{{ stats.completed_today }} today</div>
+      </div>
+    </div>
+
+    <div class="stats shadow-md">
+      <div class="stat">
+        <div class="stat-figure text-error">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div class="stat-title">Failed</div>
+        <div class="stat-value text-error">{{ stats.failed_count }}</div>
+        <div class="stat-desc">Needs attention</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tracker Insights -->
+  <div class="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="card bg-base-200 shadow-md">
+      <div class="card-body">
+        <h2 class="card-title">Ratio Tracker</h2>
+        <div class="flex items-center gap-4">
+          <div class="radial-progress text-primary"
+               style="--value:{{ ratio_progress|round|int }};"
+               role="progressbar">
+            {{ settings.user_ratio|round(2) }}
+          </div>
+          <div>
+            <p class="text-sm opacity-70">Goal {{ settings.ratio_goal|round(2) }}</p>
+            <p class="text-xs opacity-50">Keep ratio ≥ 1.0 to stay safe on MAM.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 shadow-md">
+      <div class="card-body">
+        <h2 class="card-title">Bonus Points</h2>
+        <p class="text-3xl font-bold text-success">{{ settings.bonus_points }}</p>
+        <p class="text-xs opacity-60">Accrue Karma automatically while seeding.</p>
+      </div>
+    </div>
+  </div>
+
+  {% if settings.freeleech_alerts_enabled and freeleech_jobs|length > 0 %}
+  <div class="w-full max-w-7xl">
+    <div class="alert alert-info shadow-md">
+      <div>
+        <h3 class="font-semibold flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7z" />
+          </svg>
+          Freeleech Active
+        </h3>
+        <p class="text-sm opacity-70">
+          {{ freeleech_jobs|length }} download{{ freeleech_jobs|length != 1 and 's' or '' }} currently freeleeching — great opportunity to boost ratio.
+        </p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Active Downloads Section -->
+  {% if active_jobs|length > 0 %}
+  <div class="w-full max-w-7xl">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold flex items-center gap-2">
+        <span class="loading loading-spinner loading-sm text-info"></span>
+        Active Downloads
+        <span class="badge badge-info badge-lg">{{ active_jobs|length }}</span>
+      </h2>
+    </div>
+
+    <!-- Auto-refresh container -->
+    <div id="active-downloads"
+         hx-get="/mamlarr/fragments/active"
+         hx-trigger="every 5s"
+         hx-swap="innerHTML">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for job in active_jobs %}
+          {% set seed_target_hours = seed_target_hours %}
+          {% include "mamlarr/components/job_card.html" %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Recent Completed Section -->
+  {% if completed_jobs|length > 0 %}
+  <div class="w-full max-w-7xl">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold flex items-center gap-2">
+        <svg class="w-6 h-6 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Recently Completed
+      </h2>
+      <a href="/mamlarr/jobs?status=completed" class="link link-primary">View all →</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for job in completed_jobs[:9] %}
+        {% set seed_target_hours = seed_target_hours %}
+        {% include "mamlarr/components/job_card.html" %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Empty State -->
+  {% if active_jobs|length == 0 and completed_jobs|length == 0 %}
+  <div class="w-full max-w-7xl text-center py-16">
+    <div class="flex flex-col items-center gap-4">
+      <svg class="w-24 h-24 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+      </svg>
+      <h3 class="text-2xl font-semibold">No active downloads</h3>
+      <p class="text-lg opacity-70 max-w-md">
+        Search for audiobooks in AudioBookRequest and download them through Prowlarr to see them here.
+      </p>
+      <div class="flex gap-4 mt-4">
+        <a href="{{ base_url }}/search" class="btn btn-primary btn-lg gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Search AudioBooks
+        </a>
+        <a href="/mamlarr/settings" class="btn btn-outline btn-lg gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          </svg>
+          Configure Mamlarr
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock body %}

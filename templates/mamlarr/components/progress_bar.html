@@ -1,0 +1,11 @@
+<div class="w-full">
+  {% if show_label %}
+  <div class="flex justify-between text-sm mb-1">
+    <span class="opacity-70">{{ label }}</span>
+    <span class="font-medium">{{ progress }}%</span>
+  </div>
+  {% endif %}
+  <progress class="progress w-full {% if progress >= 100 %}progress-success{% elif progress >= 75 %}progress-primary{% elif progress >= 50 %}progress-warning{% else %}progress-info{% endif %}"
+            value="{{ progress }}"
+            max="100"></progress>
+</div>

@@ -1,0 +1,110 @@
+{% extends "mamlarr/base.html" %}
+
+{% block head %}
+<title>Mamlarr - Job Details</title>
+{% endblock head %}
+
+{% block body %}
+<div class="w-screen flex flex-col items-center justify-center p-4 sm:p-6">
+  <div class="w-full max-w-4xl flex flex-col gap-4">
+    <div class="flex items-center gap-4">
+      <a href="/mamlarr/jobs" class="btn btn-ghost btn-sm gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+        Back
+      </a>
+      <div>
+        <p class="text-xs uppercase opacity-60">Job {{ job.id }}</p>
+        <h1 class="text-3xl font-bold">{{ job.release.title if job.release else job.guid }}</h1>
+      </div>
+      <div class="ml-auto">
+        {% set status = job.status %}
+        {% include "mamlarr/components/status_badge.html" %}
+      </div>
+    </div>
+
+    {% if job.release and job.release.indexerFlags %}
+    <div class="alert alert-info">
+      <div>
+        <h3 class="font-semibold">Tracker Flags</h3>
+        <div class="flex gap-2 flex-wrap">
+          {% for flag in job.release.indexerFlags %}
+            <span class="badge badge-outline badge-info uppercase">{{ flag }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if job.status in ["downloading", "seeding"] %}
+    <div class="card bg-base-200 shadow-inner">
+      <div class="card-body">
+        <h2 class="card-title">Progress</h2>
+        {% if job.status == "seeding" %}
+          {% set required_seconds = seed_target_hours * 3600 %}
+          {% set progress = (job.seed_seconds / required_seconds * 100)|round|int if required_seconds > 0 else 100 %}
+          <div class="flex flex-col gap-2">
+            <progress class="progress progress-warning" value="{{ progress }}" max="100"></progress>
+            <p class="text-sm opacity-70">
+              {{ (job.seed_seconds/3600)|round(1) }} hours seeded of {{ seed_target_hours }} required.
+              {% if job.release and job.release.indexerFlags and "freeleech" in job.release.indexerFlags %}
+                <span class="badge badge-accent">Freeleech</span>
+              {% endif %}
+            </p>
+          </div>
+        {% else %}
+          <p class="text-sm opacity-70">Downloading torrent metadata...</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="card bg-base-200">
+        <div class="card-body gap-2">
+          <h2 class="card-title">Metadata</h2>
+          <div class="text-sm opacity-70 space-y-1">
+            <p><span class="font-semibold">Size:</span> {{ (job.release.size/1024/1024)|round(1) if job.release and job.release.size else "Unknown" }} MB</p>
+            <p><span class="font-semibold">Publish Date:</span> {{ job.release.publishDate if job.release else "Unknown" }}</p>
+            <p><span class="font-semibold">Added:</span> {{ job.created_at.strftime('%Y-%m-%d %H:%M') if job.created_at else "Unknown" }}</p>
+            {% if job.completed_at %}
+            <p><span class="font-semibold">Completed:</span> {{ job.completed_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            {% endif %}
+            {% if job.destination_path %}
+            <p><span class="font-semibold">Output:</span> <code>{{ job.destination_path }}</code></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card bg-base-200">
+        <div class="card-body gap-2">
+          <h2 class="card-title">Tracker Health</h2>
+          <p class="text-sm opacity-70">Ratio {{ settings.user_ratio|round(2) }} / goal {{ settings.ratio_goal|round(2) }}</p>
+          <progress class="progress progress-primary" value="{{ (settings.user_ratio / settings.ratio_goal * 100)|round if settings.ratio_goal > 0 else 100 }}" max="100"></progress>
+          <div class="divider my-2"></div>
+          <p class="text-sm opacity-70">Bonus Points <span class="badge badge-outline badge-success">{{ settings.bonus_points }}</span></p>
+          <p class="text-xs opacity-50">Keep seeding to earn Karma and protect your ratio.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center">
+      <div class="text-xs opacity-60">
+        Torrents on private trackers must seed for at least 72 hours—removing early can result in hit & runs.
+      </div>
+      {% if job.status in ["downloading", "seeding"] %}
+      <button class="btn btn-error btn-sm"
+              hx-delete="/mamlarr/api/jobs/{{ job.id }}"
+              hx-confirm="Private trackers expect a 72h seed. Remove anyway?"
+              hx-target="#job-action-result"
+              hx-swap="innerHTML">
+        Remove Download
+      </button>
+      {% endif %}
+    </div>
+    <div id="job-action-result"></div>
+  </div>
+</div>
+{% endblock body %}

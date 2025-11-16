@@ -1,0 +1,239 @@
+{% extends "mamlarr/base.html" %}
+
+{% block head %}
+<title>Mamlarr - Settings</title>
+{% endblock head %}
+
+{% block body %}
+<div class="flex items-start justify-center p-2 md:p-4 relative">
+  <main class="flex flex-col w-[90%] md:w-3/4 max-w-[40rem] gap-4 gap-y-8 pb-[10rem]">
+    <h1 class="text-3xl font-bold">Mamlarr Settings</h1>
+
+    <!-- MyAnonymouse Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">MyAnonymouse</h2>
+      <p class="text-sm opacity-60">Configure your MyAnonymouse tracker connection</p>
+
+      <label for="mam-session" class="pt-2">Session Cookie</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/mam-session">
+        <input id="mam-session"
+               name="session_id"
+               type="password"
+               {% if config.mam_session_id %}placeholder="●●●●●●●●●●●●●●●●●"{% endif %}
+               class="input join-item w-full"
+               minlength="1" />
+        <button class="join-item btn">
+          {% if config.mam_session_id %}Update{% else %}Add{% endif %}
+        </button>
+      </form>
+
+      <label for="mam-url" class="pt-2">Base URL</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/mam-url">
+        <input id="mam-url"
+               name="base_url"
+               type="url"
+               value="{{ config.mam_base_url }}"
+               class="input join-item w-full"
+               minlength="1" />
+        <button class="join-item btn">Update</button>
+      </form>
+    </div>
+
+    <!-- Transmission Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">Transmission</h2>
+      <p class="text-sm opacity-60">Configure your Transmission RPC connection</p>
+
+      <label for="transmission-url" class="pt-2">RPC URL</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/transmission-url">
+        <input id="transmission-url"
+               name="url"
+               type="url"
+               value="{{ config.transmission_url }}"
+               placeholder="http://seedbox:9091/transmission/rpc"
+               class="input join-item w-full"
+               minlength="1" />
+        <button class="join-item btn">Update</button>
+      </form>
+
+      <label for="transmission-username" class="pt-2">Username</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/transmission-username">
+        <input id="transmission-username"
+               name="username"
+               type="text"
+               value="{{ config.transmission_username or '' }}"
+               class="input join-item w-full" />
+        <button class="join-item btn">Update</button>
+      </form>
+
+      <label for="transmission-password" class="pt-2">Password</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/transmission-password">
+        <input id="transmission-password"
+               name="password"
+               type="password"
+               {% if config.transmission_password %}placeholder="●●●●●●●●●●●●●●●●●"{% endif %}
+               class="input join-item w-full" />
+        <button class="join-item btn">
+          {% if config.transmission_password %}Update{% else %}Add{% endif %}
+        </button>
+      </form>
+    </div>
+
+    <!-- Seeding Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">Seeding Requirements</h2>
+      <p class="text-sm opacity-60">Configure MyAnonymouse seeding rules</p>
+
+      <label for="seed-hours" class="pt-2">Minimum Seeding Hours</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/seed-hours">
+        <input id="seed-hours"
+               name="hours"
+               type="number"
+               min="0"
+               max="720"
+               value="{{ config.seed_target_hours }}"
+               class="input join-item w-full" />
+        <button class="join-item btn">Update</button>
+      </form>
+      <p class="text-xs opacity-50">MyAnonymouse requires 72 hours of seeding within 30 days</p>
+    </div>
+
+    <!-- Download Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">Download & Processing</h2>
+      <p class="text-sm opacity-60">Configure how audiobooks are processed</p>
+
+      <label for="download-dir" class="pt-2">Download Directory</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/download-dir">
+        <input id="download-dir"
+               name="directory"
+               type="text"
+               value="{{ config.download_directory }}"
+               class="input join-item w-full" />
+        <button class="join-item btn">Update</button>
+      </form>
+
+      <div class="form-control pt-2">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-primary"
+                 {% if config.enable_audio_merge %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/audio-merge"
+                 hx-vals='{"enabled": "toggle"}' />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Enable Audio Merging</span>
+            <span class="label-text-alt opacity-60">Merge multi-file audiobooks into single M4B file</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-warning"
+                 {% if config.remove_torrent_after_processing %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/auto-remove"
+                 hx-vals='{"enabled": "toggle"}' />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Auto-remove Torrents</span>
+            <span class="label-text-alt opacity-60">Remove torrent from Transmission after processing completes</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Advanced Settings -->
+    <div class="flex flex-col gap-2">
+      <h2 class="text-lg font-semibold">Advanced</h2>
+
+      <label for="api-key" class="pt-2">API Key</label>
+      <form class="join w-full" hx-put="/mamlarr/api/settings/api-key">
+        <input id="api-key"
+               name="api_key"
+               type="password"
+               {% if config.api_key %}placeholder="●●●●●●●●●●●●●●●●●"{% endif %}
+               class="input join-item w-full"
+               minlength="1" />
+        <button class="join-item btn">
+          {% if config.api_key %}Update{% else %}Add{% endif %}
+        </button>
+      </form>
+      <p class="text-xs opacity-50">Used by AudioBookRequest to authenticate with Mamlarr</p>
+
+      <div class="form-control pt-2">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle"
+                 {% if config.use_mock_data %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/mock-mode"
+                 hx-vals='{"enabled": "toggle"}' />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Mock Mode (Testing)</span>
+            <span class="label-text-alt opacity-60">Use mock data for offline testing</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="divider my-4">Tracker Metrics</div>
+      <form class="grid grid-cols-1 sm:grid-cols-2 gap-2"
+            hx-put="/mamlarr/api/settings/ratio">
+        <label class="text-sm font-medium col-span-full">Global Ratio</label>
+        <input name="current_ratio"
+               type="number"
+               step="0.01"
+               min="0"
+               value="{{ config.user_ratio }}"
+               class="input input-sm" />
+        <input name="ratio_goal"
+               type="number"
+               step="0.01"
+               min="0"
+               value="{{ config.ratio_goal }}"
+               class="input input-sm" />
+        <button class="btn btn-sm btn-primary col-span-full justify-self-start">Update Ratio</button>
+      </form>
+
+      <form class="join w-full" hx-put="/mamlarr/api/settings/bonus">
+        <input name="bonus_points"
+               type="number"
+               min="0"
+               value="{{ config.bonus_points }}"
+               class="input join-item input-sm w-full" />
+        <button class="join-item btn btn-sm">Update Bonus Points</button>
+      </form>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-accent"
+                 {% if config.freeleech_alerts_enabled %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/freeleech-alerts"
+                 hx-vals='{"enabled": "toggle"}' />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Freeleech Alerts</span>
+            <span class="label-text-alt opacity-60">Highlight freeleech jobs on the dashboard</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Test Connection -->
+    <div class="card bg-base-200 shadow-md">
+      <div class="card-body">
+        <h3 class="card-title">Test Connection</h3>
+        <p class="text-sm opacity-70">Verify your Transmission connection is working</p>
+        <button class="btn btn-primary"
+                hx-post="/mamlarr/api/test-connection"
+                hx-target="#test-result"
+                hx-swap="innerHTML">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Test Connection
+        </button>
+        <div id="test-result" class="mt-2"></div>
+      </div>
+    </div>
+  </main>
+</div>
+{% endblock body %}
