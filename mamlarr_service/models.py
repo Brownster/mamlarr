@@ -23,6 +23,9 @@ class Release(BaseModel):
     downloadUrl: Optional[str] = None
     magnetUrl: Optional[str] = None
     publishDate: str
+    peers: int = 0
+    downloadVolumeFactor: float = 1.0
+    minimumSeedTime: int = 0
 
 
 class CachedResult(BaseModel):
