@@ -25,5 +25,6 @@ packages = ["mamlarr_service"]
 dev-dependencies = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-aiohttp>=1.0.0",
     "httpx>=0.27.0",
 ]

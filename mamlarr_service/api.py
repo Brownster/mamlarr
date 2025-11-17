@@ -27,6 +27,7 @@ from .mam_client import (
 )
 from .manager import DownloadManager
 from .models import DownloadJob, DownloadJobStatus, IndexerInfo, Release
+from .providers.qbit import QbitProviderFactory
 from .settings import MamServiceSettings, load_settings
 from .settings_store import SettingsStore
 from .store import JobStore, SearchResultStore
@@ -119,6 +120,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
     app.state.mam_client = None
     app.state.manager: DownloadManager | None = None
     app.state.settings_store = settings_store
+    app.state.qbit_factory = QbitProviderFactory()
 
     async def _get_http_session() -> ClientSession:
         session = app.state.http_session
@@ -141,17 +143,45 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         manager = app.state.manager
         if manager:
             await manager.stop()
-        if current_settings.use_mock_data or current_settings.transmission_url:
-            http_session = await _get_http_session()
-            manager = DownloadManager(
-                service_settings=current_settings,
-                job_store=app.state.job_store,
-                http_session=http_session,
+        should_start = (
+            current_settings.use_mock_data
+            or bool(current_settings.transmission_url)
+            or (
+                current_settings.use_qbittorrent
+                and not current_settings.use_mock_data
             )
-            app.state.manager = manager
-            await manager.start()
-        else:
+        )
+        if not should_start:
             app.state.manager = None
+            return
+
+        http_session = await _get_http_session()
+        qb_client = None
+        if (
+            current_settings.use_qbittorrent
+            and not current_settings.use_mock_data
+        ):
+            if not (
+                current_settings.qbittorrent_url
+                and current_settings.qbittorrent_username
+                and current_settings.qbittorrent_password
+            ):
+                raise ValueError("qBittorrent credentials are required when enabled")
+            qb_client = await app.state.qbit_factory.create_client(
+                http_session,
+                current_settings.qbittorrent_url,
+                current_settings.qbittorrent_username,
+                current_settings.qbittorrent_password,
+            )
+
+        manager = DownloadManager(
+            service_settings=current_settings,
+            job_store=app.state.job_store,
+            http_session=http_session,
+            qbittorrent_client=qb_client,
+        )
+        app.state.manager = manager
+        await manager.start()
 
     async def _apply_settings_update(
         changes: dict[str, Any],
@@ -564,14 +594,23 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             )
         manager = app.state.manager
         if settings.use_qbittorrent:
-            qb_client = getattr(manager, "qbittorrent", None) if manager else None
-            if qb_client is None:
+            if not (
+                settings.qbittorrent_url
+                and settings.qbittorrent_username
+                and settings.qbittorrent_password
+            ):
                 raise HTTPException(
                     status_code=400,
-                    detail="qBittorrent is enabled but not configured or running.",
+                    detail="qBittorrent is enabled but credentials are missing.",
                 )
+            http_session = await _get_http_session()
             try:
-                await qb_client.test_connection()
+                capabilities = await app.state.qbit_factory.test_connection(
+                    http_session,
+                    settings.qbittorrent_url,
+                    settings.qbittorrent_username,
+                    settings.qbittorrent_password,
+                )
             except Exception as exc:
                 logger.warning("qBittorrent test failed", error=str(exc))
                 return HTMLResponse(
@@ -579,7 +618,9 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
                     status_code=502,
                 )
             return HTMLResponse(
-                "<div class='text-success text-sm'>qBittorrent API reachable.</div>"
+                "<div class='text-success text-sm'>"
+                f"qBittorrent API reachable (web API v{capabilities.api_major})."
+                "</div>"
             )
 
         if not settings.transmission_url:
