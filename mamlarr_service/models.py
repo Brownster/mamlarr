@@ -69,3 +69,4 @@ class DownloadJob(BaseModel):
     last_seed_timestamp: Optional[datetime] = None
     destination_path: Optional[str] = None
     provider: str = "transmission"
+    seed_configuration: dict[str, Any] = Field(default_factory=dict)
