@@ -12,8 +12,8 @@ from .log import logger
 
 from .models import CachedResult, DownloadJob, DownloadJobStatus
 from .postprocess import PostProcessingError, PostProcessor
-from .providers.qbit import QbitClient
-from .settings import MamServiceSettings
+from .providers.qbit import QbitAddOptions, QbitClient
+from .settings import MamServiceSettings, QbitInitialState
 from .store import JobStore
 from .transmission import MockTransmissionClient, TransmissionClient, TransmissionError
 
@@ -241,9 +241,32 @@ class DownloadManager:
             assert self.transmission is not None
             return await self.transmission.add_torrent(torrent_bytes)
         assert self.qbittorrent is not None
-        await self.qbittorrent.add_torrent(torrent_bytes)
+        await self.qbittorrent.add_torrent(
+            torrent_bytes, options=self._build_qbit_add_options()
+        )
         info_hash = TorfTorrent.read_stream(torrent_bytes).infohash.upper()
         return {"hashString": info_hash}
+
+    def _build_qbit_add_options(self) -> QbitAddOptions:
+        state = self.settings.qbittorrent_initial_state
+        start_paused: bool | None = None
+        force_start: bool | None = None
+        if state == QbitInitialState.force_start:
+            force_start = True
+            start_paused = False
+        elif state == QbitInitialState.start:
+            start_paused = False
+        elif state == QbitInitialState.stop:
+            start_paused = True
+        return QbitAddOptions(
+            category=self.settings.qbittorrent_category or None,
+            start_paused=start_paused,
+            force_start=force_start,
+            sequential=self.settings.qbittorrent_sequential,
+            content_layout=self.settings.qbittorrent_content_layout,
+            ratio_limit=self.settings.qbittorrent_seed_ratio,
+            seeding_time_limit=self.settings.qbittorrent_seed_time,
+        )
 
     async def _fetch_torrents(self, hashes: list[str]) -> dict[str, dict]:
         if self.use_mock_data or self.provider == "transmission":

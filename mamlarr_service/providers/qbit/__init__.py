@@ -1,5 +1,6 @@
 """qBittorrent provider helpers."""
 
+from .add_torrent import QbitAddOptions
 from .capabilities import QbitCapabilities
 from .client import QbitClient
 from .errors import (
@@ -17,6 +18,7 @@ __all__ = [
     "CapabilityProbeError",
     "CertValidationError",
     "HTTPStatusError",
+    "QbitAddOptions",
     "QbitCapabilities",
     "QbitClient",
     "QbitClientError",
