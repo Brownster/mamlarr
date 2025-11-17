@@ -14,6 +14,7 @@ from aiohttp.client_exceptions import (
 from yarl import URL
 
 from ...log import logger
+from .add_torrent import QbitAddOptions, QbitAddRequestBuilder
 from .capabilities import QbitCapabilities
 from .errors import (
     AuthenticationError,
@@ -120,8 +121,11 @@ class QbitClient:
     async def _ensure_auth(self) -> None:
         await self._login()
 
-    async def add_torrent(self, torrent_bytes: bytes) -> None:
+    async def add_torrent(
+        self, torrent_bytes: bytes, *, options: QbitAddOptions | None = None
+    ) -> None:
         await self._ensure_auth()
+        request = QbitAddRequestBuilder(self._capabilities).build(options)
         form = FormData()
         form.add_field(
             "torrents",
@@ -129,7 +133,9 @@ class QbitClient:
             filename="download.torrent",
             content_type="application/x-bittorrent",
         )
-        await self._request("POST", "api/v2/torrents/add", data=form)
+        for key, value in request.form_fields.items():
+            form.add_field(key, value)
+        await self._request("POST", request.path, data=form)
         logger.info("qBittorrent: torrent added")
 
     async def list_torrents(self, hashes: Optional[Iterable[str]] = None) -> list[dict]:

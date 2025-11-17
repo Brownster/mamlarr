@@ -2,6 +2,7 @@ import pytest
 from aiohttp import ClientSession, CookieJar, web
 
 from mamlarr_service.providers.qbit import (
+    QbitAddOptions,
     QbitCapabilities,
     QbitClient,
     QueueingDisabledError,
@@ -70,7 +71,7 @@ async def test_qbit_client_happy_path(aiohttp_server):
             TEST_CAPABILITIES,
         )
         await client.test_connection()
-        await client.add_torrent(b"dummy")
+        await client.add_torrent(b"dummy", options=QbitAddOptions(category="books"))
         torrents = await client.list_torrents(["ABC123"])
         assert len(torrents) == 1
         assert torrents[0]["hash"] == "ABC123"
