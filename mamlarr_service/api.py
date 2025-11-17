@@ -28,7 +28,13 @@ from .mam_client import (
 from .manager import DownloadManager
 from .models import DownloadJob, DownloadJobStatus, IndexerInfo, Release
 from .providers.qbit import QbitProviderFactory
-from .settings import MamServiceSettings, load_settings
+from .settings import (
+    QBIT_CATEGORY_PATTERN,
+    QbitContentLayout,
+    QbitInitialState,
+    MamServiceSettings,
+    load_settings,
+)
 from .settings_store import SettingsStore
 from .store import JobStore, SearchResultStore
 from .transmission import TransmissionClient
@@ -101,6 +107,54 @@ def _parse_int_filters(raw: list[str] | None) -> list[int]:
         except ValueError:
             logger.debug("MamService: ignoring invalid filter", value=chunk)
     return values
+
+
+def _success_response() -> HTMLResponse:
+    return HTMLResponse("", headers={"HX-Trigger": "mamlarr:settings"})
+
+
+def _validation_error(message: str) -> HTMLResponse:
+    return HTMLResponse(
+        f"<span class=\"text-error text-xs\">{message}</span>",
+        status_code=200,
+    )
+
+
+def _normalize_category(value: str | None, *, required: bool) -> str | None:
+    trimmed = (value or "").strip()
+    if not trimmed:
+        if required:
+            raise ValueError("Category cannot be empty")
+        return None
+    if not QBIT_CATEGORY_PATTERN.match(trimmed):
+        raise ValueError("Cannot contain \\\"\\\\\\\", '//', or start/end with '/'")
+    return trimmed
+
+
+def _parse_seed_ratio(value: str | None) -> Optional[float]:
+    trimmed = (value or "").strip()
+    if not trimmed:
+        return None
+    try:
+        ratio = float(trimmed)
+    except ValueError as exc:  # pragma: no cover - defensive, validated in tests
+        raise ValueError("Seed ratio must be a number") from exc
+    if ratio < 1.0:
+        raise ValueError("Seed ratio must be at least 1.0")
+    return round(ratio, 2)
+
+
+def _parse_seed_time(value: str | None) -> Optional[int]:
+    trimmed = (value or "").strip()
+    if not trimmed:
+        return None
+    try:
+        minutes = int(trimmed)
+    except ValueError as exc:
+        raise ValueError("Seed time must be an integer number of minutes") from exc
+    if minutes < 1:
+        raise ValueError("Seed time must be at least 1 minute")
+    return minutes
 
 
 def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
@@ -394,7 +448,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         await _apply_settings_update(
             {"mam_session_id": session_id}, reset_mam_client=True
         )
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/mam-url")
     async def update_mam_url(request: Request):
@@ -403,7 +457,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         if not base_url:
             raise HTTPException(status_code=400, detail="base_url is required")
         await _apply_settings_update({"mam_base_url": base_url}, reset_mam_client=True)
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/transmission-url")
     async def update_transmission_url(request: Request):
@@ -413,14 +467,14 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             {"transmission_url": url},
             restart_manager=True,
         )
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/qb-url")
     async def update_qb_url(request: Request):
         data = await request.form()
         url = (data.get("url") or "").strip() or None
         await _apply_settings_update({"qbittorrent_url": url})
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/transmission-username")
     async def update_transmission_username(request: Request):
@@ -431,7 +485,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             restart_manager=bool(app.state.settings.transmission_url)
             or app.state.settings.use_mock_data,
         )
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/transmission-password")
     async def update_transmission_password(request: Request):
@@ -442,21 +496,91 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             restart_manager=bool(app.state.settings.transmission_url)
             or app.state.settings.use_mock_data,
         )
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/qb-username")
     async def update_qb_username(request: Request):
         data = await request.form()
         username = (data.get("username") or "").strip() or None
         await _apply_settings_update({"qbittorrent_username": username})
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/qb-password")
     async def update_qb_password(request: Request):
         data = await request.form()
         password = (data.get("password") or "").strip() or None
         await _apply_settings_update({"qbittorrent_password": password})
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-category")
+    async def update_qb_category(request: Request):
+        data = await request.form()
+        try:
+            category = _normalize_category(data.get("category"), required=True)
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        await _apply_settings_update({"qbittorrent_category": category})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-post-category")
+    async def update_qb_post_category(request: Request):
+        data = await request.form()
+        try:
+            category = _normalize_category(data.get("category"), required=False)
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        await _apply_settings_update({"qbittorrent_post_import_category": category})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-initial-state")
+    async def update_qb_initial_state(request: Request):
+        data = await request.form()
+        raw_state = (data.get("initial_state") or "").strip()
+        try:
+            state = QbitInitialState(raw_state)
+        except ValueError:
+            return _validation_error("Select a valid initial state")
+        await _apply_settings_update({"qbittorrent_initial_state": state.value})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-sequential")
+    async def update_qb_sequential(request: Request):
+        data = await request.form()
+        current = app.state.settings.qbittorrent_sequential
+        new_value = _toggle_value(data.get("enabled"), current)
+        await _apply_settings_update({"qbittorrent_sequential": new_value})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-content-layout")
+    async def update_qb_content_layout(request: Request):
+        data = await request.form()
+        raw_layout = (data.get("content_layout") or "").strip()
+        try:
+            layout = QbitContentLayout(raw_layout)
+        except ValueError:
+            return _validation_error("Select a valid content layout")
+        await _apply_settings_update({"qbittorrent_content_layout": layout.value})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-seed-ratio")
+    async def update_qb_seed_ratio(request: Request):
+        data = await request.form()
+        try:
+            ratio = _parse_seed_ratio(data.get("seed_ratio"))
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        await _apply_settings_update({"qbittorrent_seed_ratio": ratio})
+        return _success_response()
+
+    @app.put("/mamlarr/api/settings/qb-seed-time")
+    async def update_qb_seed_time(request: Request):
+        data = await request.form()
+        try:
+            minutes = _parse_seed_time(data.get("seed_time"))
+        except ValueError as exc:
+            return _validation_error(str(exc))
+        await _apply_settings_update({"qbittorrent_seed_time": minutes})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/seed-hours")
     async def update_seed_hours(request: Request):
@@ -470,7 +594,7 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             {"seed_target_hours": hours},
             restart_manager=True,
         )
-        return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
+        return _success_response()
 
     @app.put("/mamlarr/api/settings/download-dir")
     async def update_download_dir(request: Request):
