@@ -13,7 +13,7 @@ from fastapi import (
     Request,
     status,
 )
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -27,7 +27,7 @@ from .mam_client import (
 )
 from .manager import DownloadManager
 from .models import DownloadJob, DownloadJobStatus, IndexerInfo, Release
-from .providers.qbit import QbitProviderFactory
+from .providers.qbit import QbitClientError, QbitProviderFactory
 from .settings import (
     QBIT_CATEGORY_PATTERN,
     QbitContentLayout,
@@ -118,6 +118,28 @@ def _validation_error(message: str) -> HTMLResponse:
         f"<span class=\"text-error text-xs\">{message}</span>",
         status_code=200,
     )
+
+
+def _connection_test_response(
+    message: str,
+    *,
+    success: bool,
+    accepts_json: bool,
+    hint: str | None = None,
+    status_code: int = 200,
+) -> Response:
+    if accepts_json:
+        payload = {
+            "status": "ok" if success else "error",
+            "message": message,
+            "hint": hint,
+        }
+        return JSONResponse(payload, status_code=status_code)
+    tone = "text-success" if success else "text-error"
+    html = f"<div class='text-sm {tone}'>{message}</div>"
+    if hint:
+        html += f"<div class='text-xs opacity-70 mt-1'>{hint}</div>"
+    return HTMLResponse(html, status_code=status_code)
 
 
 def _normalize_category(value: str | None, *, required: bool) -> str | None:
@@ -710,11 +732,14 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
         return Response(status_code=204, headers={"HX-Trigger": "mamlarr:settings"})
 
     @app.post("/mamlarr/api/test-connection")
-    async def test_connection():
+    async def test_connection(request: Request):
+        accepts_json = "application/json" in (request.headers.get("accept", "").lower())
         settings = app.state.settings
         if settings.use_mock_data:
-            return HTMLResponse(
-                "<div class='text-success text-sm'>Mock mode enabled - connection OK.</div>"
+            return _connection_test_response(
+                "Mock mode enabled - connection OK.",
+                success=True,
+                accepts_json=accepts_json,
             )
         manager = app.state.manager
         if settings.use_qbittorrent:
@@ -735,16 +760,31 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
                     settings.qbittorrent_username,
                     settings.qbittorrent_password,
                 )
+            except QbitClientError as exc:
+                logger.warning(
+                    "qBittorrent test failed",
+                    error=str(exc),
+                    hint=getattr(exc, "hint", None),
+                )
+                return _connection_test_response(
+                    f"qBittorrent connection failed: {exc}",
+                    success=False,
+                    hint=getattr(exc, "hint", None),
+                    status_code=502,
+                    accepts_json=accepts_json,
+                )
             except Exception as exc:
                 logger.warning("qBittorrent test failed", error=str(exc))
-                return HTMLResponse(
-                    f"<div class='text-error text-sm'>qBittorrent connection failed: {exc}</div>",
+                return _connection_test_response(
+                    "qBittorrent connection failed. Check the server logs for details.",
+                    success=False,
                     status_code=502,
+                    accepts_json=accepts_json,
                 )
-            return HTMLResponse(
-                "<div class='text-success text-sm'>"
-                f"qBittorrent API reachable (web API v{capabilities.api_major})."
-                "</div>"
+            return _connection_test_response(
+                f"qBittorrent API reachable (web API v{capabilities.api_major}).",
+                success=True,
+                accepts_json=accepts_json,
             )
 
         if not settings.transmission_url:
@@ -765,19 +805,25 @@ def create_app(settings: Optional[MamServiceSettings] = None) -> FastAPI:
             await client.test_connection()
         except ClientError as exc:
             logger.warning("Transmission test failed", error=str(exc))
-            return HTMLResponse(
-                f"<div class='text-error text-sm'>Connection failed: {exc}</div>",
+            return _connection_test_response(
+                f"Connection failed: {exc}",
+                success=False,
+                hint="Verify the Transmission RPC URL, credentials, and that RPC access is enabled.",
                 status_code=502,
+                accepts_json=accepts_json,
             )
         except Exception as exc:
             logger.error("Transmission test error", error=str(exc))
-            return HTMLResponse(
-                "<div class='text-error text-sm'>Unexpected error testing Transmission. "
-                "Check logs for details.</div>",
+            return _connection_test_response(
+                "Unexpected error testing Transmission. Check logs for details.",
+                success=False,
                 status_code=500,
+                accepts_json=accepts_json,
             )
-        return HTMLResponse(
-            "<div class='text-success text-sm'>Transmission RPC reachable.</div>"
+        return _connection_test_response(
+            "Transmission RPC reachable.",
+            success=True,
+            accepts_json=accepts_json,
         )
 
     @app.delete("/mamlarr/api/jobs/{job_id}")

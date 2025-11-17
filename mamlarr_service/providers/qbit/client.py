@@ -72,32 +72,50 @@ class QbitClient:
                         continue
                     return await self._decode_response(resp)
             except (ClientConnectorCertificateError, ClientConnectorSSLError) as exc:
-                raise CertValidationError("TLS validation failed for qBittorrent") from exc
+                raise CertValidationError() from exc
             except ClientError as exc:
-                raise QbitClientError(f"qBittorrent request failed: {exc}") from exc
-        raise AuthenticationError("qBittorrent authentication failed")
+                raise QbitClientError(
+                    f"qBittorrent request failed: {exc}",
+                    hint="Ensure the qBittorrent URL is reachable from the server running Mamlarr.",
+                ) from exc
+        raise AuthenticationError()
 
     async def _handle_forbidden(self) -> None:
         self._authenticated = False
         await self._login(force=True)
 
     async def _decode_response(self, resp):
-        if resp.status == 403:
-            raise AuthenticationError("qBittorrent authentication failed")
-        if resp.status == 409:
-            body = await resp.text()
-            if "queue" in body.lower():
-                raise QueueingDisabledError(
-                    "qBittorrent queueing is disabled. Enable it or adjust slots."
-                )
-            raise HTTPStatusError(resp.status, resp.reason, body)
         if resp.status >= 400:
-            body = await resp.text()
-            raise HTTPStatusError(resp.status, resp.reason, body)
+            await self._handle_http_error(resp)
         content_type = resp.headers.get("Content-Type", "")
         if "application/json" in content_type:
             return await resp.json()
         return await resp.text()
+
+    async def _handle_http_error(self, resp) -> None:
+        body = await resp.text()
+        lower_body = body.lower()
+        logger.warning(
+            "qBittorrent HTTP error",
+            status=resp.status,
+            reason=resp.reason,
+            body_preview=body[:200].strip(),
+            url=str(resp.url),
+        )
+        if resp.status in (401, 403):
+            raise AuthenticationError()
+        if resp.status == 409 and "queue" in lower_body:
+            raise QueueingDisabledError()
+        hint: str | None = None
+        if resp.status == 404:
+            hint = "Confirm the qBittorrent version exposes the WebUI API at this base path."
+        elif resp.status == 415:
+            hint = "qBittorrent could not parse the upload. Update the client or retry with a known-good .torrent file."
+        elif resp.status == 429:
+            hint = "qBittorrent is rate limiting API calls. Reduce the polling frequency or wait a moment."
+        elif resp.status >= 500:
+            hint = "The qBittorrent WebUI reported a server error. Check its logs for more details."
+        raise HTTPStatusError(resp.status, resp.reason, body, hint=hint)
 
     async def _login(self, *, force: bool = False) -> None:
         if self._authenticated and not force:
@@ -111,7 +129,7 @@ class QbitClient:
         ) as resp:
             body = await resp.text()
             if resp.status != 200 or body.strip() != "Ok.":
-                raise AuthenticationError("Failed to login to qBittorrent")
+                raise AuthenticationError()
         self._authenticated = True
         self._persist_cookies()
         logger.info(
