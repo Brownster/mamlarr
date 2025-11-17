@@ -12,7 +12,7 @@ from .log import logger
 
 from .models import CachedResult, DownloadJob, DownloadJobStatus
 from .postprocess import PostProcessingError, PostProcessor
-from .qbit_client import QbitClient
+from .providers.qbit import QbitClient
 from .settings import MamServiceSettings
 from .store import JobStore
 from .transmission import MockTransmissionClient, TransmissionClient, TransmissionError
@@ -24,6 +24,8 @@ class DownloadManager:
         service_settings: MamServiceSettings,
         job_store: JobStore,
         http_session: ClientSession,
+        *,
+        qbittorrent_client: QbitClient | None = None,
     ):
         self.settings = service_settings
         self.job_store = job_store
@@ -43,23 +45,16 @@ class DownloadManager:
             enable_merge=service_settings.enable_audio_merge,
             http_session=http_session,
         )
+        self.qbittorrent = qbittorrent_client
         if self.use_mock_data:
             self.transmission = MockTransmissionClient(service_settings)
             self.qbittorrent = None
         else:
             if self.provider == "qbittorrent":
-                if not (
-                    service_settings.qbittorrent_url
-                    and service_settings.qbittorrent_username
-                    and service_settings.qbittorrent_password
-                ):
-                    raise ValueError("qBittorrent credentials are required when enabled")
-                self.qbittorrent = QbitClient(
-                    http_session,
-                    service_settings.qbittorrent_url,
-                    service_settings.qbittorrent_username,
-                    service_settings.qbittorrent_password,
-                )
+                if not self.qbittorrent:
+                    raise ValueError(
+                        "qBittorrent is enabled but no client was provided to DownloadManager"
+                    )
                 self.transmission = None
             else:
                 if not service_settings.transmission_url:
@@ -70,7 +65,6 @@ class DownloadManager:
                     username=service_settings.transmission_username,
                     password=service_settings.transmission_password,
                 )
-                self.qbittorrent = None
         self._stopping = False
 
     async def start(self):
