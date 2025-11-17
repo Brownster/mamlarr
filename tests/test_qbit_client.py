@@ -141,3 +141,65 @@ async def test_qbit_client_queueing_disabled_error(aiohttp_server):
         )
         with pytest.raises(QueueingDisabledError):
             await client.add_torrent(b"data")
+
+
+@pytest.mark.asyncio
+async def test_set_share_limits_calls_endpoint(aiohttp_server):
+    async def login(request):
+        return web.Response(text="Ok.")
+
+    limits_payload: dict[str, str] = {}
+
+    async def set_limits(request):
+        data = await request.post()
+        limits_payload.update(data)
+        return web.Response(text="Ok.")
+
+    app = web.Application()
+    app.router.add_post("/api/v2/auth/login", login)
+    app.router.add_post("/api/v2/torrents/setShareLimits", set_limits)
+
+    server = await aiohttp_server(app)
+    async with ClientSession(cookie_jar=CookieJar()) as session:
+        client = QbitClient(
+            session,
+            str(server.make_url("")),
+            "user",
+            "pass",
+            TEST_CAPABILITIES,
+        )
+        await client.set_share_limits(
+            "ABC123", ratio_limit=1.5, seeding_time_limit=120
+        )
+
+    assert limits_payload == {
+        "hashes": "ABC123",
+        "ratioLimit": "1.5",
+        "seedingTimeLimit": "120",
+    }
+
+
+@pytest.mark.asyncio
+async def test_set_share_limits_noop_on_v1(aiohttp_server):
+    login_calls = 0
+
+    async def login(request):
+        nonlocal login_calls
+        login_calls += 1
+        return web.Response(text="Ok.")
+
+    app = web.Application()
+    app.router.add_post("/api/v2/auth/login", login)
+
+    server = await aiohttp_server(app)
+    async with ClientSession(cookie_jar=CookieJar()) as session:
+        client = QbitClient(
+            session,
+            str(server.make_url("")),
+            "user",
+            "pass",
+            QbitCapabilities(api_major=1, supported_endpoints=frozenset({"/version/api"})),
+        )
+        await client.set_share_limits("ABC123", ratio_limit=1.1, seeding_time_limit=10)
+
+    assert login_calls == 0

@@ -160,6 +160,31 @@ class QbitClient:
         )
         logger.info("qBittorrent: torrent removed", hash=hash_string)
 
+    async def set_share_limits(
+        self,
+        hash_string: str,
+        *,
+        ratio_limit: float | None = None,
+        seeding_time_limit: int | None = None,
+    ) -> None:
+        if self._capabilities.api_major < 2:
+            logger.debug(
+                "qBittorrent: skipping share limit update", api_major=self._capabilities.api_major
+            )
+            return
+        if ratio_limit is None and seeding_time_limit is None:
+            return
+        await self._ensure_auth()
+        data: Dict[str, str] = {"hashes": hash_string}
+        if ratio_limit is not None:
+            data["ratioLimit"] = str(ratio_limit)
+        if seeding_time_limit is not None:
+            data["seedingTimeLimit"] = str(seeding_time_limit)
+        await self._request(
+            "POST", "api/v2/torrents/setShareLimits", data=data
+        )
+        logger.info("qBittorrent: share limits updated", hash=hash_string)
+
     async def test_connection(self) -> None:
         await self._ensure_auth()
         await self._request("GET", "api/v2/app/version")

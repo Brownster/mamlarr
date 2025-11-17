@@ -13,6 +13,7 @@ from .log import logger
 from .models import CachedResult, DownloadJob, DownloadJobStatus
 from .postprocess import PostProcessingError, PostProcessor
 from .providers.qbit import QbitAddOptions, QbitClient
+from .seeding import TorrentSeedConfiguration, build_seed_configuration
 from .settings import MamServiceSettings, QbitInitialState
 from .store import JobStore
 from .transmission import MockTransmissionClient, TransmissionClient, TransmissionError
@@ -111,14 +112,18 @@ class DownloadManager:
         torrent_bytes = await self._download_torrent(cached.raw)
         await self.job_store.update_fields(job.id, torrent_id=str(cached.raw.get("id")))
 
-        add_result = await self._add_torrent(torrent_bytes)
-        await self.job_store.update_fields(
+        seed_config = build_seed_configuration(job, self.settings)
+        add_result = await self._add_torrent(torrent_bytes, seed_config)
+        updated_job = await self.job_store.update_fields(
             job.id,
             transmission_id=add_result.get("id"),
             transmission_hash=add_result.get("hashString"),
             provider=self.provider,
             message=f"Torrent added to {self.provider}",
+            seed_configuration=seed_config.to_record(),
         )
+        job = updated_job or job
+        await self._apply_qbit_share_limits(job, seed_config)
         if self.use_mock_data:
             await self._complete_mock_job(job.id, add_result)
 
@@ -142,6 +147,7 @@ class DownloadManager:
         now = datetime.utcnow()
 
         for job in jobs:
+            active_seed_config: TorrentSeedConfiguration | None = None
             torrent_hash = job.transmission_hash
             if not torrent_hash:
                 continue
@@ -170,10 +176,16 @@ class DownloadManager:
             if job.status == DownloadJobStatus.seeding:
                 await self._update_seeding(job, torrent, now)
                 job = (await self.job_store.get(job.id)) or job
+                active_seed_config = build_seed_configuration(job, self.settings)
 
+            target_seconds = (
+                active_seed_config.required_seed_seconds
+                if active_seed_config
+                else int(self.settings.seed_target_hours * 3600)
+            )
             if (
                 job.status == DownloadJobStatus.seeding
-                and job.seed_seconds >= self.settings.seed_target_hours * 3600
+                and job.seed_seconds >= target_seconds
             ):
                 await self.job_store.update_status(
                     job.id,
@@ -183,6 +195,9 @@ class DownloadManager:
                 asyncio.create_task(self._finalize_job(job.id, torrent))
 
     async def _update_seeding(self, job: DownloadJob, torrent: dict, now: datetime):
+        config = build_seed_configuration(job, self.settings)
+        if not self._seed_configuration_matches(job, config):
+            job = await self._update_seed_configuration(job, config)
         seeding_statuses = {5, 6}
         status = torrent.get("status")
         last = job.last_seed_timestamp or now
@@ -224,30 +239,40 @@ class DownloadManager:
             )
 
     async def _complete_mock_job(self, job_id: str, torrent_snapshot: dict):
+        job = await self.job_store.get(job_id)
+        required_seconds = (
+            build_seed_configuration(job, self.settings).required_seed_seconds
+            if job
+            else int(self.settings.seed_target_hours * 3600)
+        )
         await self.job_store.update_fields(
             job_id,
             status=DownloadJobStatus.seeding,
             completed_at=datetime.utcnow(),
             message="Mock seeding complete",
-            seed_seconds=int(self.settings.seed_target_hours * 3600),
+            seed_seconds=int(required_seconds),
         )
         await self.job_store.update_status(
             job_id, DownloadJobStatus.processing, "Processing mock download"
         )
         await self._finalize_job(job_id, torrent_snapshot)
 
-    async def _add_torrent(self, torrent_bytes: bytes) -> dict:
+    async def _add_torrent(
+        self, torrent_bytes: bytes, seed_config: TorrentSeedConfiguration
+    ) -> dict:
         if self.use_mock_data or self.provider == "transmission":
             assert self.transmission is not None
             return await self.transmission.add_torrent(torrent_bytes)
         assert self.qbittorrent is not None
         await self.qbittorrent.add_torrent(
-            torrent_bytes, options=self._build_qbit_add_options()
+            torrent_bytes, options=self._build_qbit_add_options(seed_config)
         )
         info_hash = TorfTorrent.read_stream(torrent_bytes).infohash.upper()
         return {"hashString": info_hash}
 
-    def _build_qbit_add_options(self) -> QbitAddOptions:
+    def _build_qbit_add_options(
+        self, seed_config: TorrentSeedConfiguration
+    ) -> QbitAddOptions:
         state = self.settings.qbittorrent_initial_state
         start_paused: bool | None = None
         force_start: bool | None = None
@@ -264,8 +289,41 @@ class DownloadManager:
             force_start=force_start,
             sequential=self.settings.qbittorrent_sequential,
             content_layout=self.settings.qbittorrent_content_layout,
-            ratio_limit=self.settings.qbittorrent_seed_ratio,
-            seeding_time_limit=self.settings.qbittorrent_seed_time,
+            ratio_limit=seed_config.ratio_limit,
+            seeding_time_limit=seed_config.seeding_time_limit,
+        )
+
+    def _seed_configuration_matches(
+        self, job: DownloadJob, config: TorrentSeedConfiguration
+    ) -> bool:
+        current = TorrentSeedConfiguration.from_record(job.seed_configuration)
+        return current == config
+
+    async def _update_seed_configuration(
+        self, job: DownloadJob, config: TorrentSeedConfiguration
+    ) -> DownloadJob:
+        updated = await self.job_store.update_fields(
+            job.id, seed_configuration=config.to_record()
+        )
+        job = updated or job
+        await self._apply_qbit_share_limits(job, config)
+        return job
+
+    async def _apply_qbit_share_limits(
+        self, job: DownloadJob, config: TorrentSeedConfiguration
+    ) -> None:
+        if (
+            self.provider != "qbittorrent"
+            or not self.qbittorrent
+            or not job.transmission_hash
+        ):
+            return
+        if config.ratio_limit is None and config.seeding_time_limit is None:
+            return
+        await self.qbittorrent.set_share_limits(
+            job.transmission_hash,
+            ratio_limit=config.ratio_limit,
+            seeding_time_limit=config.seeding_time_limit,
         )
 
     async def _fetch_torrents(self, hashes: list[str]) -> dict[str, dict]:
