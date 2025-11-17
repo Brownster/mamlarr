@@ -101,3 +101,29 @@ def test_search_endpoint_returns_mock_results(api_client: TestClient, test_setti
     assert "[EN][M4B]" in release["title"]
     assert release["indexerFlags"] == []
     assert release["seeders"] == 15
+
+
+def test_qb_category_validation_shows_error(api_client: TestClient):
+    response = api_client.put(
+        "/mamlarr/api/settings/qb-category",
+        data={"category": "/invalid"},
+    )
+    assert response.status_code == 200
+    assert "Cannot contain" in response.text
+    assert api_client.app.state.settings.qbittorrent_category == "mamlarr"
+
+
+def test_qb_seed_ratio_requires_minimum(api_client: TestClient):
+    error_response = api_client.put(
+        "/mamlarr/api/settings/qb-seed-ratio",
+        data={"seed_ratio": "0.5"},
+    )
+    assert "Seed ratio" in error_response.text
+
+    ok_response = api_client.put(
+        "/mamlarr/api/settings/qb-seed-ratio",
+        data={"seed_ratio": "1.5"},
+    )
+    assert ok_response.status_code == 200
+    assert ok_response.text == ""
+    assert api_client.app.state.settings.qbittorrent_seed_ratio == 1.5

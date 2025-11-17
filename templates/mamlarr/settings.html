@@ -144,6 +144,128 @@
           {% if config.qbittorrent_password %}Update{% else %}Add{% endif %}
         </button>
       </form>
+
+      <div class="divider my-4">Torrent Categories</div>
+      <label for="qb-category" class="pt-2">Category</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-category"
+            hx-target="#qb-category-feedback"
+            hx-swap="innerHTML">
+        <input id="qb-category"
+               name="category"
+               type="text"
+               minlength="1"
+               value="{{ config.qbittorrent_category }}"
+               class="input join-item w-full"
+               placeholder="mamlarr" />
+        <button class="join-item btn">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Will be created automatically in qBittorrent if it does not exist.</p>
+      <p id="qb-category-feedback" class="text-xs text-error min-h-5"></p>
+
+      <label for="qb-post-category" class="pt-2">Post-import Category</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-post-category"
+            hx-target="#qb-post-category-feedback"
+            hx-swap="innerHTML">
+        <input id="qb-post-category"
+               name="category"
+               type="text"
+               value="{{ config.qbittorrent_post_import_category or '' }}"
+               class="input join-item w-full"
+               placeholder="Optional" />
+        <button class="join-item btn">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Use to automatically recategorize completed imports (Radarr-style workflow).</p>
+      <p id="qb-post-category-feedback" class="text-xs text-error min-h-5"></p>
+
+      <div class="divider my-4">Behavior</div>
+      <label for="qb-initial-state" class="pt-2">Initial State</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-initial-state"
+            hx-target="#qb-initial-state-feedback"
+            hx-swap="innerHTML">
+        <select id="qb-initial-state"
+                name="initial_state"
+                class="select select-sm join-item w-full">
+          <option value="start" {% if config.qbittorrent_initial_state == 'start' %}selected{% endif %}>Started</option>
+          <option value="force_start" {% if config.qbittorrent_initial_state == 'force_start' %}selected{% endif %}>Force Start</option>
+          <option value="stop" {% if config.qbittorrent_initial_state == 'stop' %}selected{% endif %}>Stopped</option>
+        </select>
+        <button class="join-item btn btn-sm">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Match Radarr's qBittorrent behavior when queueing new torrents.</p>
+      <p id="qb-initial-state-feedback" class="text-xs text-error min-h-5"></p>
+
+      <div class="form-control pt-2">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox"
+                 class="toggle toggle-accent"
+                 {% if config.qbittorrent_sequential %}checked{% endif %}
+                 hx-put="/mamlarr/api/settings/qb-sequential"
+                 hx-vals='{"enabled": "toggle"}'
+                 hx-target="#qb-sequential-feedback"
+                 hx-swap="innerHTML" />
+          <div class="flex flex-col">
+            <span class="label-text font-medium">Sequential Downloading</span>
+            <span class="label-text-alt opacity-60">Request pieces in order for faster preview playback.</span>
+          </div>
+        </label>
+      </div>
+      <p id="qb-sequential-feedback" class="text-xs text-error min-h-5"></p>
+
+      <label for="qb-content-layout" class="pt-2">Content Layout</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-content-layout"
+            hx-target="#qb-content-layout-feedback"
+            hx-swap="innerHTML">
+        <select id="qb-content-layout"
+                name="content_layout"
+                class="select select-sm join-item w-full">
+          <option value="default" {% if config.qbittorrent_content_layout == 'default' %}selected{% endif %}>Use Client Default</option>
+          <option value="original" {% if config.qbittorrent_content_layout == 'original' %}selected{% endif %}>Original</option>
+          <option value="subfolder" {% if config.qbittorrent_content_layout == 'subfolder' %}selected{% endif %}>Create Subfolder</option>
+        </select>
+        <button class="join-item btn btn-sm">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Control whether qBittorrent preserves the torrent folder layout.</p>
+      <p id="qb-content-layout-feedback" class="text-xs text-error min-h-5"></p>
+
+      <div class="divider my-4">Share Limits</div>
+      <label for="qb-seed-ratio" class="pt-2">Seed Ratio</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-seed-ratio"
+            hx-target="#qb-seed-ratio-feedback"
+            hx-swap="innerHTML">
+        <input id="qb-seed-ratio"
+               name="seed_ratio"
+               type="number"
+               step="0.1"
+               min="1"
+               value="{{ config.qbittorrent_seed_ratio if config.qbittorrent_seed_ratio is not none else '' }}"
+               class="input join-item w-full"
+               placeholder="Use qBittorrent default" />
+        <button class="join-item btn">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Ratio target before stopping (Radarr recommends at least 1.0, empty to defer to the client).</p>
+      <p id="qb-seed-ratio-feedback" class="text-xs text-error min-h-5"></p>
+
+      <label for="qb-seed-time" class="pt-2">Seed Time (minutes)</label>
+      <form class="join w-full"
+            hx-put="/mamlarr/api/settings/qb-seed-time"
+            hx-target="#qb-seed-time-feedback"
+            hx-swap="innerHTML">
+        <input id="qb-seed-time"
+               name="seed_time"
+               type="number"
+               min="1"
+               value="{{ config.qbittorrent_seed_time if config.qbittorrent_seed_time is not none else '' }}"
+               class="input join-item w-full"
+               placeholder="Use qBittorrent default" />
+        <button class="join-item btn">Update</button>
+      </form>
+      <p class="text-xs opacity-60">Minimum seeding duration in minutes, or leave blank to respect qBittorrent's defaults.</p>
+      <p id="qb-seed-time-feedback" class="text-xs text-error min-h-5"></p>
     </div>
 
     <!-- Seeding Settings -->

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+import re
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -15,6 +16,25 @@ class SearchType(str, Enum):
     dying = "dying"
     dead = "dead"
     all = "all"
+
+
+class QbitInitialState(str, Enum):
+    """Supported initial states for qBittorrent torrents."""
+
+    start = "start"
+    force_start = "force_start"
+    stop = "stop"
+
+
+class QbitContentLayout(str, Enum):
+    """Content layout handling options available in qBittorrent."""
+
+    default = "default"
+    original = "original"
+    subfolder = "subfolder"
+
+
+QBIT_CATEGORY_PATTERN = re.compile(r"^([^\\/](\/?[^\\/])*)?$")
 
 
 class MamServiceSettings(BaseSettings):
@@ -112,6 +132,36 @@ class MamServiceSettings(BaseSettings):
     )
     qbittorrent_username: Optional[str] = Field(default=None)
     qbittorrent_password: Optional[str] = Field(default=None)
+    qbittorrent_category: str = Field(
+        default="mamlarr",
+        description="Category assigned to torrents added via qBittorrent.",
+    )
+    qbittorrent_post_import_category: Optional[str] = Field(
+        default=None,
+        description="Category to apply after processing completes.",
+    )
+    qbittorrent_initial_state: QbitInitialState = Field(
+        default=QbitInitialState.start,
+        description="Initial qBittorrent state for new torrents.",
+    )
+    qbittorrent_sequential: bool = Field(
+        default=False,
+        description="Enable sequential download mode for qBittorrent torrents.",
+    )
+    qbittorrent_content_layout: QbitContentLayout = Field(
+        default=QbitContentLayout.default,
+        description="Folder layout applied when adding torrents to qBittorrent.",
+    )
+    qbittorrent_seed_ratio: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Seed ratio goal enforced when qBittorrent supports share limits.",
+    )
+    qbittorrent_seed_time: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Desired seeding duration (minutes) enforced when supported.",
+    )
     use_transmission: bool = Field(
         True,
         description="Transmission download provider enabled.",
@@ -156,6 +206,53 @@ class MamServiceSettings(BaseSettings):
         if isinstance(value, Iterable):
             return [int(chunk) for chunk in value]
         raise TypeError("search_languages must be a comma separated string or iterable of ints")
+
+    @staticmethod
+    def _validate_category_value(value: str | None, *, allow_empty: bool) -> str | None:
+        if value is None:
+            if allow_empty:
+                return None
+            raise ValueError("Category cannot be empty")
+        trimmed = value.strip()
+        if not trimmed:
+            if allow_empty:
+                return None
+            raise ValueError("Category cannot be empty")
+        if not QBIT_CATEGORY_PATTERN.match(trimmed):
+            raise ValueError("Category cannot contain '\\', '//' or start/end with '/'")
+        return trimmed
+
+    @field_validator("qbittorrent_category")
+    @classmethod
+    def _validate_qb_category(cls, value: str) -> str:
+        validated = cls._validate_category_value(value, allow_empty=False)
+        assert validated is not None
+        return validated
+
+    @field_validator("qbittorrent_post_import_category")
+    @classmethod
+    def _validate_qb_post_category(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return cls._validate_category_value(value, allow_empty=True)
+
+    @field_validator("qbittorrent_seed_ratio")
+    @classmethod
+    def _validate_seed_ratio(cls, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        if value < 1.0:
+            raise ValueError("Seed ratio must be at least 1.0 when specified")
+        return round(value, 2)
+
+    @field_validator("qbittorrent_seed_time")
+    @classmethod
+    def _validate_seed_time(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if value < 1:
+            raise ValueError("Seed time must be a positive number of minutes")
+        return value
 
 
 def load_settings() -> MamServiceSettings:
